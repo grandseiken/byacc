@@ -1,19 +1,20 @@
-# $NetBSD: Makefile,v 1.9 2008/07/24 17:13:00 tonnerre Exp $
+# $NetBSD: Makefile,v 1.35 2024/07/05 20:55:55 cheusov Exp $
 #
 
-DISTNAME=	byacc-20141128
-PKGREVISION=	1
+DISTNAME=	byacc-20260126
 CATEGORIES=	devel
-MASTER_SITES=	ftp://invisible-island.net/byacc/
+MASTER_SITES=	https://invisible-mirror.net/archives/byacc/
 EXTRACT_SUFX=	.tgz
 
 MAINTAINER=	pkgsrc-users@NetBSD.org
-HOMEPAGE=	http://dickey.his.com/byacc/byacc.html
+HOMEPAGE=	https://invisible-island.net/byacc/byacc.html
 COMMENT=	Berkeley Yacc
-
-PKG_DESTDIR_SUPPORT=	user-destdir
+LICENSE=	public-domain
 
 GNU_CONFIGURE=	YES
+
+CONFIGURE_ARGS+=	--with-manpage-format=normal
+
 MAKE_FILE=	makefile
 
 .include "../../mk/bsd.pkg.mk"

@@ -1,16 +1,17 @@
-Summary: byacc - public domain Berkeley LALR Yacc parser generator
-%define AppProgram byacc
-%define AppVersion 20141128
-%define UseProgram yacc
-# $XTermId: mingw-byacc.spec,v 1.8 2014/11/28 15:42:17 tom Exp $
-Name: %{AppProgram}
-Version: %{AppVersion}
+Summary: Public domain Berkeley LALR Yacc parser generator
+
+%global AppVersion 2.0
+%global AppPatched 20260126
+
+%global UseProgram yacc
+
+# $Id: mingw-byacc.spec,v 1.57 2026/01/24 12:09:51 tom Exp $
+Name: byacc
+Version: %{AppVersion}.%{AppPatched}
 Release: 1
 License: Public Domain, MIT
-Group: Applications/Development
-URL: ftp://invisible-island.net/%{AppProgram}
-Source0: %{AppProgram}-%{AppVersion}.tgz
-Packager: Thomas Dickey <dickey@invisible-island.net>
+URL: https://invisible-island.net/%{name}/
+Source0: https://invisible-mirror.net/archives/%{name}/%{name}-%{AppPatched}.tgz
 
 %description
 This package provides a parser generator utility that reads a grammar
@@ -21,12 +22,12 @@ license which includes the generated C.
 
 %prep
 
-%setup -q -n %{AppProgram}-%{AppVersion}
+%global debug_package %{nil}
+
+%setup -q -n %{name}-%{AppPatched}
 
 %build
-
-INSTALL_PROGRAM='${INSTALL}' \
-	./configure \
+%configure --verbose \
 		--program-prefix=b \
 		--target %{_target_platform} \
 		--prefix=%{_prefix} \
@@ -39,22 +40,32 @@ make
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT
 
-make install                    DESTDIR=$RPM_BUILD_ROOT
-( cd $RPM_BUILD_ROOT%{_bindir} && ln -s %{AppProgram} %{UseProgram} )
+make install DESTDIR=$RPM_BUILD_ROOT
+( cd $RPM_BUILD_ROOT%{_bindir} && ln -s %{name} %{UseProgram} )
 
-strip $RPM_BUILD_ROOT%{_bindir}/%{AppProgram}
+strip $RPM_BUILD_ROOT%{_bindir}/%{name}
 
 %clean
 [ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT
 
 %files
-%defattr(-,root,root)
-%{_prefix}/bin/%{AppProgram}
-%{_prefix}/bin/%{UseProgram}
-%{_mandir}/man1/%{AppProgram}.*
+%doc ACKNOWLEDGEMENTS CHANGES NEW_FEATURES NOTES NO_WARRANTY README
+%license LICENSE
+%{_bindir}/%{name}
+%{_bindir}/%{UseProgram}
+%{_mandir}/man1/%{name}.*
 
 %changelog
 # each patch should add its ChangeLog entries here
+
+* Sat Jan 24 2026 Thomas E. Dickey
+- testing byacc 2.0-20260126
+
+* Sun Jan 09 2022 Thomas Dickey
+- rpmlint
+
+* Sun Jul 09 2017 Thomas Dickey
+- use predefined "configure"
 
 * Wed Sep 25 2013 Thomas Dickey
 - cloned from byacc.spec

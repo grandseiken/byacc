@@ -1,4 +1,4 @@
-/* $Id: mstring.c,v 1.6 2014/04/22 23:36:31 tom Exp $ */
+/* $Id: mstring.c,v 1.11 2024/12/14 16:48:04 tom Exp $ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,13 +12,11 @@
 #define HEAD	24
 #define TAIL	8
 
-#if defined(YYBTYACC)
-
 static char *buf_ptr;
 static size_t buf_len;
 
 void
-msprintf(struct mstring *s, const char *fmt,...)
+msprintf(struct mstring *s, const char *fmt, ...)
 {
     va_list args;
     size_t len;
@@ -33,7 +31,7 @@ msprintf(struct mstring *s, const char *fmt,...)
     {
 	buf_ptr = malloc(buf_len = 4096);
     }
-    if (buf_ptr == 0)
+    if (buf_ptr == NULL)
     {
 	return;
     }
@@ -42,15 +40,15 @@ msprintf(struct mstring *s, const char *fmt,...)
     do
     {
 	va_start(args, fmt);
-	len = (size_t) vsnprintf(buf_ptr, buf_len, fmt, args);
+	len = (size_t)vsnprintf(buf_ptr, buf_len, fmt, args);
 	va_end(args);
 	if ((changed = (len > buf_len)) != 0)
 	{
 	    char *new_ptr = realloc(buf_ptr, (buf_len * 3) / 2);
-	    if (new_ptr == 0)
+	    if (new_ptr == NULL)
 	    {
 		free(buf_ptr);
-		buf_ptr = 0;
+		buf_ptr = NULL;
 		return;
 	    }
 	    buf_ptr = new_ptr;
@@ -59,17 +57,17 @@ msprintf(struct mstring *s, const char *fmt,...)
     while (changed);
 #else
     va_start(args, fmt);
-    len = (size_t) vsprintf(buf_ptr, fmt, args);
+    len = (size_t)vsprintf(buf_ptr, fmt, args);
     va_end(args);
     if (len >= buf_len)
 	return;
 #endif
 
-    if (len > (size_t) (s->end - s->ptr))
+    if (len > (size_t)(s->end - s->ptr))
     {
 	char *new_base;
-	size_t cp = (size_t) (s->ptr - s->base);
-	size_t cl = (size_t) (s->end - s->base);
+	size_t cp = (size_t)(s->ptr - s->base);
+	size_t cl = (size_t)(s->end - s->base);
 	size_t nl = cl;
 	while (len > (nl - cp))
 	    nl = nl + nl + TAIL;
@@ -82,16 +80,15 @@ msprintf(struct mstring *s, const char *fmt,...)
 	else
 	{
 	    free(s->base);
-	    s->base = 0;
-	    s->ptr = 0;
-	    s->end = 0;
+	    s->base = NULL;
+	    s->ptr = NULL;
+	    s->end = NULL;
 	    return;
 	}
     }
     memcpy(s->ptr, buf_ptr, len);
     s->ptr += len;
 }
-#endif
 
 int
 mputchar(struct mstring *s, int ch)
@@ -100,7 +97,7 @@ mputchar(struct mstring *s, int ch)
 	return ch;
     if (s->ptr == s->end)
     {
-	size_t len = (size_t) (s->end - s->base);
+	size_t len = (size_t)(s->end - s->base);
 	if ((s->base = realloc(s->base, len + len + TAIL)))
 	{
 	    s->ptr = s->base + len;
@@ -108,7 +105,7 @@ mputchar(struct mstring *s, int ch)
 	}
 	else
 	{
-	    s->ptr = s->end = 0;
+	    s->ptr = s->end = NULL;
 	    return ch;
 	}
     }
@@ -123,23 +120,37 @@ msnew(void)
 
     if (n)
     {
-	if ((n->base = n->ptr = MALLOC(HEAD)) != 0)
+	if ((n->base = n->ptr = MALLOC(HEAD)) != NULL)
 	{
 	    n->end = n->base + HEAD;
 	}
 	else
 	{
 	    free(n);
-	    n = 0;
+	    n = NULL;
 	}
     }
     return n;
 }
 
+struct mstring *
+msrenew(char *value)
+{
+    struct mstring *r = NULL;
+    if (value != NULL)
+    {
+	r = msnew();
+	r->base = value;
+	r->end = value + strlen(value);
+	r->ptr = r->end;
+    }
+    return r;
+}
+
 char *
 msdone(struct mstring *s)
 {
-    char *r = 0;
+    char *r = NULL;
     if (s)
     {
 	mputc(s, 0);
@@ -157,20 +168,20 @@ strnscmp(const char *a, const char *b)
 {
     while (1)
     {
-	while (isspace(*a))
+	while (isspace(UCH(*a)))
 	    a++;
-	while (isspace(*b))
+	while (isspace(UCH(*b)))
 	    b++;
 	while (*a && *a == *b)
 	    a++, b++;
-	if (isspace(*a))
+	if (isspace(UCH(*a)))
 	{
-	    if (isalnum(a[-1]) && isalnum(*b))
+	    if (isalnum(UCH(a[-1])) && isalnum(UCH(*b)))
 		break;
 	}
-	else if (isspace(*b))
+	else if (isspace(UCH(*b)))
 	{
-	    if (isalnum(b[-1]) && isalnum(*a))
+	    if (isalnum(UCH(b[-1])) && isalnum(UCH(*a)))
 		break;
 	}
 	else
@@ -186,7 +197,7 @@ strnshash(const char *s)
 
     while (*s)
     {
-	if (!isspace(*s))
+	if (!isspace(UCH(*s)))
 	    h = (h << 5) - h + (unsigned char)*s;
 	s++;
     }
@@ -198,10 +209,8 @@ strnshash(const char *s)
 void
 mstring_leaks(void)
 {
-#if defined(YYBTYACC)
     free(buf_ptr);
-    buf_ptr = 0;
+    buf_ptr = NULL;
     buf_len = 0;
-#endif
 }
 #endif

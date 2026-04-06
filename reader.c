@@ -1,11 +1,11 @@
-/* $Id: reader.c,v 1.58 2014/10/06 22:15:08 tom Exp $ */
+/* $Id: reader.c,v 1.108 2026/01/24 13:45:39 tom Exp $ */
 
 #include "defs.h"
 
 /*  The line size must be a positive integer.  One hundred was chosen	*/
 /*  because few lines in Yacc input grammars exceed 100 characters.	*/
 /*  Note that if a line exceeds LINESIZE characters, the line buffer	*/
-/*  will be expanded to accomodate it.					*/
+/*  will be expanded to accommodate it.					*/
 
 #define LINESIZE 100
 
@@ -20,12 +20,37 @@
 /* this is a hard limit, but seems more than adequate */
 #define MAXARGS	20
 
+/* limit the size of optional names for %union */
+#define NAME_LEN 32
+
+#define IS_ALNUM(c) (isalnum(UCH(c)) || (c) == '_')
+
+#define begin_case(f,n) fprintf(f, "case %d:\n", (int)(n))
+
+#define end_case(f) \
+	    fprintf(f, "\n"); \
+	    fprintf_lineno(f, 1, ""); \
+	    fprintf(f, "break;\n")
+
+#define begin_ainfo(data, offset) do { \
+	    data.a_lineno = lineno; \
+	    data.a_line = dup_line(); \
+	    data.a_cptr = data.a_line + (cptr - line - offset); \
+	} while (0)
+
+#define end_ainfo(data) do { \
+	    FREE(data.a_line); \
+	    memset(&data, 0, sizeof(data)); \
+	} while (0)
+
 static void start_rule(bucket *bp, int s_lineno);
 #if defined(YYBTYACC)
+static void copy_initial_action(void);
 static void copy_destructor(void);
 static char *process_destructor_XX(char *code, char *tag);
 #endif
 
+#define CACHE_SIZE 256
 static char *cache;
 static int cinc, cache_size;
 
@@ -35,13 +60,30 @@ static char **tag_table;
 
 static char saw_eof;
 char unionized;
-char *cptr, *line;
-static int linesize;
+
+char *line;		/* current input-line */
+char *cptr;		/* position within current input-line */
+static size_t linesize;	/* length of current input-line */
+
+typedef struct
+{
+    char *line_data;	/* saved input-line */
+    size_t line_used;	/* position within saved input-line */
+    size_t line_size;	/* length of saved input-line */
+    fpos_t line_fpos;	/* pointer before reading past saved input-line */
+}
+SAVE_LINE;
+
+static SAVE_LINE save_area;
+static int must_save;	/* request > 0, triggered < 0, inactive 0 */
 
 static bucket *goal;
 static Value_t prec;
 static int gensym;
 static char last_was_action;
+#if defined(YYBTYACC)
+static int trialaction;
+#endif
 
 static int maxitems;
 static bucket **pitem;
@@ -57,11 +99,18 @@ char line_format[] = "#line %d \"%s\"\n";
 param *lex_param;
 param *parse_param;
 
+static const char *code_keys[] =
+{
+    "", "requires", "provides", "top", "imports",
+};
+
+struct code_lines code_lines[CODE_MAX];
+
 #if defined(YYBTYACC)
 int destructor = 0;	/* =1 if at least one %destructor */
 
 static bucket *default_destructor[3] =
-{0, 0, 0};
+{NULL, NULL, NULL};
 
 #define UNTYPED_DEFAULT 0
 #define TYPED_DEFAULT   1
@@ -95,7 +144,7 @@ cachec(int c)
     assert(cinc >= 0);
     if (cinc >= cache_size)
     {
-	cache_size += 256;
+	cache_size += CACHE_SIZE;
 	cache = TREALLOC(char, cache, cache_size);
 	NO_SPACE(cache);
     }
@@ -103,56 +152,247 @@ cachec(int c)
     ++cinc;
 }
 
+typedef enum
+{
+    ldSPC1,
+    ldSPC2,
+    ldNAME,
+    ldSPC3,
+    ldNUM,
+    ldSPC4,
+    ldFILE,
+    ldOK,
+    ldERR
+}
+LINE_DIR;
+
+/*
+ * Expect this pattern:
+ *	/^[[:space:]]*#[[:space:]]*
+ *	  line[[:space:]]+
+ *	  [[:digit:]]+
+ *	  ([[:space:]]*|[[:space:]]+"[^"]+")/
+ */
+static int
+line_directive(void)
+{
+#define UNLESS(what) if (what) { ld = ldERR; break; }
+    int n;
+    int line_1st = -1;
+    int name_1st = -1;
+    int name_end = -1;
+    LINE_DIR ld = ldSPC1;
+    for (n = 0; (ld <= ldOK) && (line[n] != '\0'); ++n)
+    {
+	int ch = UCH(line[n]);
+	switch (ld)
+	{
+	case ldSPC1:
+	    if (isspace(UCH(ch)))
+	    {
+		break;
+	    }
+	    else
+		UNLESS(ch != '#');
+	    ld = ldSPC2;
+	    break;
+	case ldSPC2:
+	    if (isspace(UCH(ch)))
+	    {
+		break;
+	    }
+	    /* FALLTHRU */
+	case ldNAME:
+	    UNLESS(strncmp(line + n, "line", 4));
+	    n += 4;
+	    if (line[n] == '\0')
+	    {
+		ld = ldOK;
+		break;
+	    }
+	    else
+		UNLESS(!isspace(UCH(line[n])));
+	    ld = ldSPC3;
+	    break;
+	case ldSPC3:
+	    if (isspace(UCH(ch)))
+	    {
+		break;
+	    }
+	    else
+		UNLESS(!isdigit(UCH(ch)));
+	    line_1st = n;
+	    ld = ldNUM;		/* this is needed, but cppcheck says no... */
+	    /* FALLTHRU */
+	case ldNUM:
+	    if (isdigit(UCH(ch)))
+	    {
+		break;
+	    }
+	    else
+		UNLESS(!isspace(UCH(ch)));
+	    ld = ldSPC4;
+	    break;
+	case ldSPC4:
+	    if (isspace(UCH(ch)))
+	    {
+		break;
+	    }
+	    else
+		UNLESS(ch != '"');
+	    UNLESS(line[n + 1] == '"');
+	    ld = ldFILE;
+	    name_1st = n;
+	    break;
+	case ldFILE:
+	    if (ch != '"')
+	    {
+		break;
+	    }
+	    ld = ldOK;
+	    name_end = n;
+	    /* FALLTHRU */
+	case ldERR:
+	case ldOK:
+	    break;
+	}
+    }
+
+    if (ld == ldOK)
+    {
+	size_t need = (size_t)(name_end - name_1st);
+	if ((long)need > (long)input_file_name_len)
+	{
+	    input_file_name_len = ((need + 1) * 3) / 2;
+	    input_file_name = TREALLOC(char, input_file_name, input_file_name_len);
+	    NO_SPACE(input_file_name);
+	}
+	if ((long)need > 0)
+	{
+	    memcpy(input_file_name, line + name_1st + 1, need - 1);
+	    input_file_name[need - 1] = '\0';
+	}
+	else
+	{
+	    input_file_name[0] = '\0';
+	}
+    }
+
+    if (ld >= ldNUM && ld < ldERR)
+    {
+	if (line_1st >= 0)
+	{
+	    lineno = (int)strtol(line + line_1st, NULL, 10) - 1;
+	}
+	else
+	{
+	    lineno = 0;
+	}
+    }
+
+    return (ld == ldOK);
+#undef UNLESS
+}
+
+static void
+save_line(void)
+{
+    /* remember to save the input-line if we call get_line() */
+    if (!must_save)
+    {
+	must_save = 1;
+	save_area.line_used = (size_t)(cptr - line);
+    }
+}
+
+static void
+restore_line(void)
+{
+    /* if we saved the line, restore it */
+    if (must_save < 0)
+    {
+	free(line);
+	line = save_area.line_data;
+	cptr = save_area.line_used + line;
+	linesize = save_area.line_size;
+	if (fsetpos(input_file, &save_area.line_fpos) != 0)
+	    on_error();
+	memset(&save_area, 0, sizeof(save_area));
+    }
+    else if (must_save > 0)
+    {
+	cptr = line + save_area.line_used;
+    }
+    must_save = 0;
+}
+
 static void
 get_line(void)
 {
     FILE *f = input_file;
-    int c;
-    int i;
 
-    if (saw_eof || (c = getc(f)) == EOF)
+    if (must_save > 0)
     {
-	if (line)
+	save_area.line_data = TMALLOC(char, linesize);
+	save_area.line_used = (size_t)(cptr - line);
+	save_area.line_size = linesize;
+	NO_SPACE(save_area.line_data);
+	memcpy(save_area.line_data, line, linesize);
+	if (fgetpos(f, &save_area.line_fpos) != 0)
+	    on_error();
+	must_save = -must_save;
+    }
+
+    do
+    {
+	int c;
+	size_t i;
+
+	if (saw_eof || (c = getc(f)) == EOF)
 	{
-	    FREE(line);
-	    line = 0;
+	    if (line)
+	    {
+		FREE(line);
+		line = NULL;
+	    }
+	    cptr = NULL;
+	    saw_eof = 1;
+	    return;
 	}
-	cptr = 0;
-	saw_eof = 1;
-	return;
-    }
 
-    if (line == 0 || linesize != (LINESIZE + 1))
-    {
-	if (line)
-	    FREE(line);
-	linesize = LINESIZE + 1;
-	line = TMALLOC(char, linesize);
-	NO_SPACE(line);
-    }
-
-    i = 0;
-    ++lineno;
-    for (;;)
-    {
-	line[i++] = (char)c;
-	if (c == '\n')
-	    break;
-	if ((i + 3) >= linesize)
+	if (line == NULL || linesize != (LINESIZE + 1))
 	{
-	    linesize += LINESIZE;
-	    line = TREALLOC(char, line, linesize);
+	    if (line)
+		FREE(line);
+	    linesize = LINESIZE + 1;
+	    line = TMALLOC(char, linesize);
 	    NO_SPACE(line);
 	}
-	c = getc(f);
-	if (c == EOF)
+
+	i = 0;
+	++lineno;
+	for (;;)
 	{
-	    line[i++] = '\n';
-	    saw_eof = 1;
-	    break;
+	    line[i++] = (char)c;
+	    if (c == '\n')
+		break;
+	    if ((i + 3) >= linesize)
+	    {
+		linesize += LINESIZE;
+		line = TREALLOC(char, line, linesize);
+		NO_SPACE(line);
+	    }
+	    c = getc(f);
+	    if (c == EOF)
+	    {
+		line[i++] = '\n';
+		saw_eof = 1;
+		break;
+	    }
 	}
+	line[i] = '\0';
     }
-    line[i] = '\0';
+    while (line_directive());
     cptr = line;
     return;
 }
@@ -160,10 +400,11 @@ get_line(void)
 static char *
 dup_line(void)
 {
-    char *p, *s, *t;
+    const char *s;
+    char *p, *t;
 
-    if (line == 0)
-	return (0);
+    if (line == NULL)
+	return (NULL);
     s = line;
     while (*s != '\n')
 	++s;
@@ -173,7 +414,9 @@ dup_line(void)
     s = line;
     t = p;
     while ((*t++ = *s++) != '\n')
-	continue;
+    {
+	;
+    }
     return (p);
 }
 
@@ -181,10 +424,9 @@ static void
 skip_comment(void)
 {
     char *s;
+    struct ainfo a;
 
-    int st_lineno = lineno;
-    char *st_line = dup_line();
-    char *st_cptr = st_line + (cptr - line);
+    begin_ainfo(a, 0);
 
     s = cptr + 2;
     for (;;)
@@ -192,14 +434,14 @@ skip_comment(void)
 	if (*s == '*' && s[1] == '/')
 	{
 	    cptr = s + 2;
-	    FREE(st_line);
+	    end_ainfo(a);
 	    return;
 	}
 	if (*s == '\n')
 	{
 	    get_line();
-	    if (line == 0)
-		unterminated_comment(st_lineno, st_line, st_cptr);
+	    if (line == NULL)
+		unterminated_comment(&a);
 	    s = cptr;
 	}
 	else
@@ -212,10 +454,10 @@ next_inline(void)
 {
     char *s;
 
-    if (line == 0)
+    if (line == NULL)
     {
 	get_line();
-	if (line == 0)
+	if (line == NULL)
 	    return (EOF);
     }
 
@@ -235,7 +477,7 @@ next_inline(void)
 	    else if (s[1] == '/')
 	    {
 		get_line();
-		if (line == 0)
+		if (line == NULL)
 		    return (EOF);
 		s = cptr;
 		break;
@@ -259,6 +501,7 @@ nextc(void)
     {
 	switch (ch = next_inline())
 	{
+	case '\0':
 	case '\n':
 	    get_line();
 	    break;
@@ -286,30 +529,38 @@ nextc(void)
 /* *INDENT-OFF* */
 static struct keyword
 {
-    char name[13];
+    char name[16];
     int token;
 }
 keywords[] = {
     { "binary",      NONASSOC },
+    { "code",        XCODE },
+    { "debug",       NONPOSIX_DEBUG },
+    { "define",      HACK_DEFINE },
 #if defined(YYBTYACC)
     { "destructor",  DESTRUCTOR },
 #endif
+    { "error-verbose",ERROR_VERBOSE },
     { "expect",      EXPECT },
     { "expect-rr",   EXPECT_RR },
-    { "ident",       IDENT }, 
+    { "ident",       IDENT },
+#if defined(YYBTYACC)
+    { "initial-action", INITIAL_ACTION },
+#endif
     { "left",        LEFT },
     { "lex-param",   LEX_PARAM },
 #if defined(YYBTYACC)
     { "locations",   LOCATIONS },
 #endif
     { "nonassoc",    NONASSOC },
+    { "nterm",       TYPE },
     { "parse-param", PARSE_PARAM },
     { "pure-parser", PURE_PARSER },
-    { "right",       RIGHT }, 
+    { "right",       RIGHT },
     { "start",       START },
-    { "term",        TOKEN }, 
-    { "token",       TOKEN }, 
-    { "token-table", TOKEN_TABLE }, 
+    { "term",        TOKEN },
+    { "token",       TOKEN },
+    { "token-table", TOKEN_TABLE },
     { "type",        TYPE },
     { "union",       UNION },
     { "yacc",        POSIX_YACC },
@@ -328,22 +579,23 @@ static int
 keyword(void)
 {
     int c;
-    char *t_cptr = cptr;
-    struct keyword *key;
+    const char *t_cptr = cptr;
 
     c = *++cptr;
-    if (isalpha(c))
+    if (isalpha(UCH(c)))
     {
+	struct keyword *key;
+
 	cinc = 0;
 	for (;;)
 	{
-	    if (isalpha(c))
+	    if (isalpha(UCH(c)))
 	    {
-		if (isupper(c))
+		if (isupper(UCH(c)))
 		    c = tolower(c);
 		cachec(c);
 	    }
-	    else if (isdigit(c)
+	    else if (isdigit(UCH(c))
 		     || c == '-'
 		     || c == '.'
 		     || c == '$')
@@ -385,6 +637,7 @@ keyword(void)
 	    return (NONASSOC);
     }
     syntax_error(lineno, line, t_cptr);
+    /*NOTREACHED */
 }
 
 static void
@@ -422,22 +675,22 @@ static char *
 copy_string(int quote)
 {
     struct mstring *temp = msnew();
-    int c;
-    int s_lineno = lineno;
-    char *s_line = dup_line();
-    char *s_cptr = s_line + (cptr - line - 1);
+    struct ainfo a;
+
+    begin_ainfo(a, 1);
 
     for (;;)
     {
-	c = *cptr++;
+	int c = *cptr++;
+
 	mputc(temp, c);
 	if (c == quote)
 	{
-	    FREE(s_line);
+	    end_ainfo(a);
 	    return msdone(temp);
 	}
 	if (c == '\n')
-	    unterminated_string(s_lineno, s_line, s_cptr);
+	    unterminated_string(&a);
 	if (c == '\\')
 	{
 	    c = *cptr++;
@@ -445,8 +698,8 @@ copy_string(int quote)
 	    if (c == '\n')
 	    {
 		get_line();
-		if (line == 0)
-		    unterminated_string(s_lineno, s_line, s_cptr);
+		if (line == NULL)
+		    unterminated_string(&a);
 	    }
 	}
     }
@@ -473,9 +726,9 @@ copy_comment(void)
     }
     else if (c == '*')
     {
-	int c_lineno = lineno;
-	char *c_line = dup_line();
-	char *c_cptr = c_line + (cptr - line - 1);
+	struct ainfo a;
+
+	begin_ainfo(a, 1);
 
 	mputc(temp, c);
 	++cptr;
@@ -487,18 +740,150 @@ copy_comment(void)
 	    {
 		mputc(temp, '/');
 		++cptr;
-		FREE(c_line);
+		end_ainfo(a);
 		return msdone(temp);
 	    }
 	    if (c == '\n')
 	    {
 		get_line();
-		if (line == 0)
-		    unterminated_comment(c_lineno, c_line, c_cptr);
+		if (line == NULL)
+		    unterminated_comment(&a);
 	    }
 	}
     }
     return msdone(temp);
+}
+
+static int
+check_key(int pos)
+{
+    const char *key = code_keys[pos];
+    while (*cptr && *key)
+	if (*key++ != *cptr++)
+	    return 0;
+    if (*key || (!isspace(UCH(*cptr)) && *cptr != L_CURL))
+	return 0;
+    cptr--;
+    return 1;
+}
+
+static void
+copy_code(void)
+{
+    int c;
+    int curl;
+    int cline;
+    int on_line = 0;
+    int pos = CODE_HEADER;
+    struct mstring *code_mstr;
+
+    /* read %code <keyword> { */
+    for (;;)
+    {
+	c = *++cptr;
+	if (c == EOF)
+	    unexpected_EOF();
+	if (c == '\0')
+	{
+	    get_line();
+	    if (line == NULL)
+	    {
+		unexpected_EOF();
+		/*NOTREACHED */
+	    }
+	    c = *cptr;
+	}
+	if (isspace(UCH(c)))
+	    continue;
+
+	if (c == L_CURL)
+	    break;
+
+	if (pos == CODE_HEADER)
+	{
+	    switch (UCH(c))
+	    {
+	    case 'r':
+		pos = CODE_REQUIRES;
+		break;
+	    case 'p':
+		pos = CODE_PROVIDES;
+		break;
+	    case 't':
+		pos = CODE_TOP;
+		break;
+	    case 'i':
+		pos = CODE_IMPORTS;
+		break;
+	    default:
+		break;
+	    }
+
+	    if (pos == -1 || !check_key(pos))
+	    {
+		syntax_error(lineno, line, cptr);
+		/*NOTREACHED */
+	    }
+	}
+    }
+
+    cptr++;			/* skip initial curl */
+    while (*cptr && isspace(UCH(*cptr)))	/* skip space */
+	cptr++;
+    curl = 1;			/* nesting count */
+
+    /* gather text */
+    code_lines[pos].name = code_keys[pos];
+    if ((cline = (int)code_lines[pos].num) != 0)
+    {
+	code_mstr = msrenew(code_lines[pos].lines);
+    }
+    else
+    {
+	code_mstr = msnew();
+    }
+    cline++;
+    if (!lflag)
+	msprintf(code_mstr, line_format, lineno, input_file_name);
+    for (;;)
+    {
+	c = *cptr++;
+	switch (c)
+	{
+	case '\0':
+	    get_line();
+	    if (line == NULL)
+	    {
+		unexpected_EOF();
+		/*NOTREACHED */
+	    }
+	    continue;
+	case '\n':
+	    cline++;
+	    on_line = 0;
+	    break;
+	case L_CURL:
+	    curl++;
+	    break;
+	case R_CURL:
+	    if (--curl == 0)
+	    {
+		if (on_line > 1)
+		{
+		    mputc(code_mstr, '\n');
+		    cline++;
+		}
+		code_lines[pos].lines = msdone(code_mstr);
+		code_lines[pos].num = (size_t)cline;
+		return;
+	    }
+	    break;
+	default:
+	    break;
+	}
+	mputc(code_mstr, c);
+	on_line++;
+    }
 }
 
 static void
@@ -507,18 +892,17 @@ copy_text(void)
     int c;
     FILE *f = text_file;
     int need_newline = 0;
-    int t_lineno = lineno;
-    char *t_line = dup_line();
-    char *t_cptr = t_line + (cptr - line - 2);
+    struct ainfo a;
+
+    begin_ainfo(a, 2);
 
     if (*cptr == '\n')
     {
 	get_line();
-	if (line == 0)
-	    unterminated_text(t_lineno, t_line, t_cptr);
+	if (line == NULL)
+	    unterminated_text(&a);
     }
-    if (!lflag)
-	fprintf(f, line_format, lineno, input_file_name);
+    fprintf_lineno(f, lineno, input_file_name);
 
   loop:
     c = *cptr++;
@@ -530,7 +914,7 @@ copy_text(void)
 	get_line();
 	if (line)
 	    goto loop;
-	unterminated_text(t_lineno, t_line, t_cptr);
+	unterminated_text(&a);
 
     case '\'':
     case '"':
@@ -547,7 +931,7 @@ copy_text(void)
 	putc(c, f);
 	{
 	    char *s = copy_comment();
-	    fputs(s, f);
+	    puts_trim(s, f);
 	    free(s);
 	}
 	need_newline = 1;
@@ -560,7 +944,7 @@ copy_text(void)
 	    if (need_newline)
 		putc('\n', f);
 	    ++cptr;
-	    FREE(t_line);
+	    end_ainfo(a);
 	    return;
 	}
 	/* FALLTHRU */
@@ -575,9 +959,12 @@ copy_text(void)
 static void
 puts_both(const char *s)
 {
-    fputs(s, text_file);
-    if (dflag)
-	fputs(s, union_file);
+    if (s && *s)
+    {
+	puts_trim(s, text_file);
+	if (dflag)
+	    puts_trim(s, union_file);
+    }
 }
 
 static void
@@ -593,16 +980,21 @@ copy_union(void)
 {
     int c;
     int depth;
-    int u_lineno = lineno;
-    char *u_line = dup_line();
-    char *u_cptr = u_line + (cptr - line - 6);
+    struct ainfo a;
+    char prefix_buf[NAME_LEN + 1];
+    size_t prefix_len = 0;
+    char filler_buf[NAME_LEN + 1];
+    size_t filler_len = 0;
+    int in_prefix = 1;
+
+    prefix_buf[0] = '\0';
+    filler_buf[0] = '\0';
+
+    begin_ainfo(a, 6);
 
     if (unionized)
 	over_unionized(cptr - 6);
     unionized = 1;
-
-    if (!lflag)
-	fprintf(text_file, line_format, lineno, input_file_name);
 
     puts_both("#ifdef YYSTYPE\n");
     puts_both("#undef  YYSTYPE_IS_DECLARED\n");
@@ -610,18 +1002,59 @@ copy_union(void)
     puts_both("#endif\n");
     puts_both("#ifndef YYSTYPE_IS_DECLARED\n");
     puts_both("#define YYSTYPE_IS_DECLARED 1\n");
-    puts_both("typedef union");
+
+    fprintf_lineno(text_file, lineno, input_file_name);
 
     depth = 0;
   loop:
     c = *cptr++;
-    putc_both(c);
+    if (in_prefix)
+    {
+	if (c == L_CURL)
+	{
+	    in_prefix = 0;
+	    if (prefix_len)
+	    {
+		puts_both("union ");
+		puts_both(prefix_buf);
+		puts_both(filler_buf);
+	    }
+	    else
+	    {
+		puts_both("typedef union YYSTYPE");
+		puts_both(filler_buf);
+	    }
+	}
+	else if (isspace(c))
+	{
+	    if (filler_len >= sizeof(filler_buf) - 1)
+	    {
+		puts_both(filler_buf);
+		filler_len = 0;
+	    }
+	    filler_buf[filler_len++] = (char)c;
+	    filler_buf[filler_len] = 0;
+	    if (c != '\n')
+		goto loop;
+	}
+	else if (IS_IDENT(c))
+	{
+	    if (prefix_len < NAME_LEN)
+	    {
+		prefix_buf[prefix_len++] = (char)c;
+		prefix_buf[prefix_len] = 0;
+	    }
+	    goto loop;
+	}
+    }
+    if (c != '\n' || !in_prefix)
+	putc_both(c);
     switch (c)
     {
     case '\n':
 	get_line();
-	if (line == 0)
-	    unterminated_union(u_lineno, u_line, u_cptr);
+	if (line == NULL)
+	    unterminated_union(&a);
 	goto loop;
 
     case L_CURL:
@@ -631,9 +1064,15 @@ copy_union(void)
     case R_CURL:
 	if (--depth == 0)
 	{
-	    puts_both(" YYSTYPE;\n");
+	    puts_both(prefix_len ? "; " : " YYSTYPE;\n");
+	    if (prefix_len)
+	    {
+		puts_both("typedef union ");
+		puts_both(prefix_buf);
+		puts_both(" YYSTYPE;\n");
+	    }
 	    puts_both("#endif /* !YYSTYPE_IS_DECLARED */\n");
-	    FREE(u_line);
+	    end_ainfo(a);
 	    return;
 	}
 	goto loop;
@@ -719,9 +1158,9 @@ trim_blanks(char *buffer)
 static int
 more_curly(void)
 {
-    char *save = cptr;
     int result = 0;
     int finish = 0;
+    save_line();
     do
     {
 	switch (next_inline())
@@ -738,7 +1177,7 @@ more_curly(void)
 	++cptr;
     }
     while (!finish);
-    cptr = save;
+    restore_line();
     return result;
 }
 
@@ -755,6 +1194,24 @@ save_param(int k, char *buffer, int name, int type2)
     buffer[type2] = '\0';
     (void)trim_blanks(p->type2);
 
+    if (!IS_ALNUM(buffer[name]))
+    {
+	int n;
+	for (n = name - 1; n >= 0; --n)
+	{
+	    if (!isspace(UCH(buffer[n])))
+	    {
+		break;
+	    }
+	}
+	while (n > 0)
+	{
+	    if (!IS_ALNUM(buffer[n - 1]))
+		break;
+	    --n;
+	}
+	name = n;
+    }
     p->name = strdup(buffer + name);
     NO_SPACE(p->name);
     buffer[name] = '\0';
@@ -795,7 +1252,7 @@ copy_param(int k)
     int c;
     int name, type2;
     int curly = 0;
-    char *buf = 0;
+    char *buf = NULL;
     int i = -1;
     size_t buf_size = 0;
     int st_lineno = lineno;
@@ -848,21 +1305,25 @@ copy_param(int k)
 	    }
 	    break;
 	}
-	if (buf == 0)
+	if (buf == NULL)
 	{
-	    buf_size = (size_t) linesize;
+	    buf_size = (size_t)linesize;
 	    buf = TMALLOC(char, buf_size);
+	    NO_SPACE(buf);
 	}
 	else if (c == '\n')
 	{
+	    char *tmp;
+
 	    get_line();
-	    if (line == 0)
+	    if (line == NULL)
 		unexpected_EOF();
 	    --cptr;
-	    buf_size += (size_t) linesize;
-	    buf = TREALLOC(char, buf, buf_size);
+	    buf_size += (size_t)linesize;
+	    tmp = TREALLOC(char, buf, buf_size);
+	    NO_SPACE(tmp);
+	    buf = tmp;
 	}
-	NO_SPACE(buf);
 	if (curly)
 	{
 	    if ((state == 2) && (c == L_CURL))
@@ -892,15 +1353,15 @@ copy_param(int k)
 	goto oops;
     }
 
-    buf[i--] = '\0';
-    i = trim_blanks(buf);
+    buf[++i] = '\0';
+    (void)trim_blanks(buf);
 
     comma = buf - 1;
     do
     {
 	char *parms = (comma + 1);
 	comma = strchr(parms, ',');
-	if (comma != 0)
+	if (comma != NULL)
 	    *comma = '\0';
 
 	(void)trim_blanks(parms);
@@ -913,13 +1374,21 @@ copy_param(int k)
 	if (parms[i] == ']')
 	{
 	    int level = 1;
-	    while (i >= 0 && level > 0 && parms[i] != '[')
+	    while (i >= 0)
 	    {
-		if (parms[i] == ']')
+		char ch = parms[i--];
+		if (ch == ']')
+		{
 		    ++level;
-		else if (parms[i] == '[')
-		    --level;
-		i--;
+		}
+		else if (ch == '[')
+		{
+		    if (--level <= 1)
+		    {
+			++i;
+			break;
+		    }
+		}
 	    }
 	    if (i <= 0)
 		unexpected_EOF();
@@ -930,7 +1399,7 @@ copy_param(int k)
 	    type2 = i + 1;
 	}
 
-	while (i > 0 && (isalnum(UCH(parms[i])) || UCH(parms[i]) == '_'))
+	while (i > 0 && IS_ALNUM(parms[i]))
 	    i--;
 
 	if (!isspace(UCH(parms[i])) && parms[i] != '*')
@@ -940,7 +1409,7 @@ copy_param(int k)
 
 	save_param(k, parms, name, type2);
     }
-    while (comma != 0);
+    while (comma != NULL);
     FREE(buf);
     return;
 
@@ -969,9 +1438,9 @@ get_literal(void)
     int n;
     char *s;
     bucket *bp;
-    int s_lineno = lineno;
-    char *s_line = dup_line();
-    char *s_cptr = s_line + (cptr - line);
+    struct ainfo a;
+
+    begin_ainfo(a, 0);
 
     quote = *cptr++;
     cinc = 0;
@@ -981,18 +1450,18 @@ get_literal(void)
 	if (c == quote)
 	    break;
 	if (c == '\n')
-	    unterminated_string(s_lineno, s_line, s_cptr);
+	    unterminated_string(&a);
 	if (c == '\\')
 	{
-	    char *c_cptr = cptr - 1;
+	    const char *c_cptr = cptr - 1;
 
 	    c = *cptr++;
 	    switch (c)
 	    {
 	    case '\n':
 		get_line();
-		if (line == 0)
-		    unterminated_string(s_lineno, s_line, s_cptr);
+		if (line == NULL)
+		    unterminated_string(&a);
 		continue;
 
 	    case '0':
@@ -1064,9 +1533,9 @@ get_literal(void)
 	}
 	cachec(c);
     }
-    FREE(s_line);
+    end_ainfo(a);
 
-    n = cinc;
+    n = cinc ? cinc : 1;
     s = TMALLOC(char, n);
     NO_SPACE(s);
 
@@ -1087,7 +1556,7 @@ get_literal(void)
 	    cachec('\\');
 	    cachec(c);
 	}
-	else if (isprint(c))
+	else if (isprint(UCH(c)))
 	    cachec(c);
 	else
 	{
@@ -1142,8 +1611,6 @@ get_literal(void)
 static int
 is_reserved(char *name)
 {
-    char *s;
-
     if (strcmp(name, ".") == 0 ||
 	strcmp(name, "$accept") == 0 ||
 	strcmp(name, "$end") == 0)
@@ -1151,7 +1618,8 @@ is_reserved(char *name)
 
     if (name[0] == '$' && name[1] == '$' && isdigit(UCH(name[2])))
     {
-	s = name + 3;
+	const char *s = name + 3;
+
 	while (isdigit(UCH(*s)))
 	    ++s;
 	if (*s == NUL)
@@ -1181,17 +1649,25 @@ static Value_t
 get_number(void)
 {
     int c;
-    Value_t n;
+    long n;
+    const char *base = cptr;
 
     n = 0;
-    for (c = *cptr; isdigit(c); c = *++cptr)
-	n = (Value_t) (10 * n + (c - '0'));
+    for (c = *cptr; isdigit(UCH(c)); c = *++cptr)
+    {
+	n = (10 * n + (c - '0'));
+	if (n > MAXYYINT)
+	{
+	    syntax_error(lineno, line, base);
+	    /*NOTREACHED */
+	}
+    }
 
-    return (n);
+    return (Value_t)(n);
 }
 
 static char *
-cache_tag(char *tag, size_t len)
+cache_tag(const char *tag, size_t len)
 {
     int i;
     char *s;
@@ -1228,13 +1704,13 @@ get_tag(void)
     int c;
     int t_lineno = lineno;
     char *t_line = dup_line();
-    char *t_cptr = t_line + (cptr - line);
+    const char *t_cptr = t_line + (cptr - line);
 
     ++cptr;
     c = nextc();
     if (c == EOF)
 	unexpected_EOF();
-    if (!isalpha(c) && c != '_' && c != '$')
+    if (!IS_NAME1(c))
 	illegal_tag(t_lineno, t_line, t_cptr);
 
     cinc = 0;
@@ -1255,18 +1731,18 @@ get_tag(void)
 
     FREE(t_line);
     havetags = 1;
-    return cache_tag(cache, (size_t) cinc);
+    return cache_tag(cache, (size_t)cinc);
 }
 
 #if defined(YYBTYACC)
 static char *
 scan_id(void)
 {
-    char *b = cptr;
+    const char *b = cptr;
 
-    while (isalnum(*cptr) || *cptr == '_' || *cptr == '$')
+    while (IS_NAME2(*cptr))
 	cptr++;
-    return cache_tag(b, (size_t) (cptr - b));
+    return cache_tag(b, (size_t)(cptr - b));
 }
 #endif
 
@@ -1276,7 +1752,7 @@ declare_tokens(int assoc)
     int c;
     bucket *bp;
     Value_t value;
-    char *tag = 0;
+    char *tag = NULL;
 
     if (assoc != TOKEN)
 	++prec;
@@ -1294,7 +1770,7 @@ declare_tokens(int assoc)
 
     for (;;)
     {
-	if (isalpha(c) || c == '_' || c == '.' || c == '$')
+	if (isalpha(UCH(c)) || c == '_' || c == '.' || c == '$')
 	    bp = get_name();
 	else if (c == '\'' || c == '"')
 	    bp = get_literal();
@@ -1316,7 +1792,7 @@ declare_tokens(int assoc)
 	{
 	    if (bp->prec && prec != bp->prec)
 		reprec_warning(bp->name);
-	    bp->assoc = (Assoc_t) assoc;
+	    bp->assoc = (Assoc_t)assoc;
 	    bp->prec = prec;
 	}
 
@@ -1324,7 +1800,7 @@ declare_tokens(int assoc)
 	if (c == EOF)
 	    unexpected_EOF();
 
-	if (isdigit(c))
+	if (isdigit(UCH(c)))
 	{
 	    value = get_number();
 	    if (bp->value != UNDEFINED && value != bp->value)
@@ -1360,7 +1836,7 @@ declare_expect(int assoc)
 
     for (;;)
     {
-	if (isdigit(c))
+	if (isdigit(UCH(c)))
 	{
 	    if (assoc == EXPECT)
 		SRexpect = get_number();
@@ -1373,7 +1849,7 @@ declare_expect(int assoc)
 	 * Spaces, tabs, and numbers are ok,
 	 * words, punc., etc. are syntax errors.
 	 */
-	else if (c == '\n' || isalpha(c) || !isspace(c))
+	else if (c == '\n' || isalpha(UCH(c)) || !isspace(UCH(c)))
 	{
 	    syntax_error(lineno, line, cptr);
 	}
@@ -1391,14 +1867,14 @@ static void
 declare_argtypes(bucket *bp)
 {
     char *tags[MAXARGS];
-    int args = 0, c;
+    int args = 0;
 
     if (bp->args >= 0)
 	retyped_warning(bp->name);
     cptr++;			/* skip open paren */
     for (;;)
     {
-	c = nextc();
+	int c = nextc();
 	if (c == EOF)
 	    unexpected_EOF();
 	if (c != '<')
@@ -1424,11 +1900,87 @@ declare_argtypes(bucket *bp)
 }
 #endif
 
+static int
+scan_blanks(void)
+{
+    int c;
+
+    do
+    {
+	c = next_inline();
+	if (c == '\n')
+	{
+	    ++cptr;
+	    return 0;
+	}
+	else if (c == ' ' || c == '\t')
+	    ++cptr;
+	else
+	    break;
+    }
+    while (c == ' ' || c == '\t');
+
+    return 1;
+}
+
+static int
+scan_ident(void)
+{
+    int c;
+
+    cinc = 0;
+    for (c = *cptr; IS_IDENT(c); c = *++cptr)
+	cachec(c);
+    cachec(NUL);
+
+    return cinc;
+}
+
+static void
+hack_defines(void)
+{
+    struct ainfo a;
+
+    if (!scan_blanks())
+	return;
+
+    begin_ainfo(a, 0);
+    if (!scan_ident())
+    {
+	end_ainfo(a);
+    }
+
+    if (!strcmp(cache, "api.pure"))
+    {
+	end_ainfo(a);
+	scan_blanks();
+	begin_ainfo(a, 0);
+	scan_ident();
+
+	if (!strcmp(cache, "false"))
+	    pure_parser = 0;
+	else if (!strcmp(cache, "true")
+		 || !strcmp(cache, "full")
+		 || *cache == 0)
+	    pure_parser = 1;
+	else
+	    unexpected_value(&a);
+	end_ainfo(a);
+    }
+    else
+    {
+	unexpected_value(&a);
+    }
+
+    while (next_inline() != '\n')
+	++cptr;
+}
+
 static void
 declare_types(void)
 {
     int c;
-    bucket *bp;
+    bucket *bp = NULL;
     char *tag = NULL;
 
     c = nextc();
@@ -1442,7 +1994,7 @@ declare_types(void)
 	c = nextc();
 	if (c == EOF)
 	    unexpected_EOF();
-	if (isalpha(c) || c == '_' || c == '.' || c == '$')
+	if (isalpha(UCH(c)) || c == '_' || c == '.' || c == '$')
 	{
 	    bp = get_name();
 #if defined(YYBTYACC)
@@ -1480,7 +2032,7 @@ declare_start(void)
     c = nextc();
     if (c == EOF)
 	unexpected_EOF();
-    if (!isalpha(c) && c != '_' && c != '.' && c != '$')
+    if (!isalpha(UCH(c)) && c != '_' && c != '.' && c != '$')
 	syntax_error(lineno, line, cptr);
     bp = get_name();
     if (bp->class == TERM)
@@ -1493,15 +2045,15 @@ declare_start(void)
 static void
 read_declarations(void)
 {
-    int c, k;
-
-    cache_size = 256;
+    cache_size = CACHE_SIZE;
     cache = TMALLOC(char, cache_size);
     NO_SPACE(cache);
 
     for (;;)
     {
-	c = nextc();
+	int k;
+	int c = nextc();
+
 	if (c == EOF)
 	    unexpected_EOF();
 	if (c != '%')
@@ -1513,6 +2065,10 @@ read_declarations(void)
 
 	case IDENT:
 	    copy_ident();
+	    break;
+
+	case XCODE:
+	    copy_code();
 	    break;
 
 	case TEXT:
@@ -1556,6 +2112,10 @@ read_declarations(void)
 	    token_table = 1;
 	    break;
 
+	case ERROR_VERBOSE:
+	    error_verbose = 1;
+	    break;
+
 #if defined(YYBTYACC)
 	case LOCATIONS:
 	    locations = 1;
@@ -1565,7 +2125,18 @@ read_declarations(void)
 	    destructor = 1;
 	    copy_destructor();
 	    break;
+	case INITIAL_ACTION:
+	    copy_initial_action();
+	    break;
 #endif
+
+	case NONPOSIX_DEBUG:
+	    tflag = 1;
+	    break;
+
+	case HACK_DEFINE:
+	    hack_defines();
+	    break;
 
 	case POSIX_YACC:
 	    /* noop for bison compatibility. byacc is already designed to be posix
@@ -1584,10 +2155,10 @@ initialize_grammar(void)
     pitem = TMALLOC(bucket *, maxitems);
     NO_SPACE(pitem);
 
-    pitem[0] = 0;
-    pitem[1] = 0;
-    pitem[2] = 0;
-    pitem[3] = 0;
+    pitem[0] = NULL;
+    pitem[1] = NULL;
+    pitem[2] = NULL;
+    pitem[3] = NULL;
 
     nrules = 3;
     maxrules = 100;
@@ -1595,9 +2166,9 @@ initialize_grammar(void)
     plhs = TMALLOC(bucket *, maxrules);
     NO_SPACE(plhs);
 
-    plhs[0] = 0;
-    plhs[1] = 0;
-    plhs[2] = 0;
+    plhs[0] = NULL;
+    plhs[1] = NULL;
+    plhs[2] = NULL;
 
     rprec = TMALLOC(Value_t, maxrules);
     NO_SPACE(rprec);
@@ -1648,9 +2219,9 @@ copy_args(int *alen)
     struct mstring *s = msnew();
     int depth = 0, len = 1;
     char c, quote = 0;
-    int a_lineno = lineno;
-    char *a_line = dup_line();
-    char *a_cptr = a_line + (cptr - line - 1);
+    struct ainfo a;
+
+    begin_ainfo(a, 1);
 
     while ((c = *cptr++) != R_PAREN || depth || quote)
     {
@@ -1667,9 +2238,9 @@ copy_args(int *alen)
 	    if (!line)
 	    {
 		if (quote)
-		    unterminated_string(a_lineno, a_line, a_cptr);
+		    unterminated_string(&a);
 		else
-		    unterminated_arglist(a_lineno, a_line, a_cptr);
+		    unterminated_arglist(&a);
 	    }
 	}
 	else if (quote)
@@ -1694,26 +2265,26 @@ copy_args(int *alen)
     }
     if (alen)
 	*alen = len;
-    FREE(a_line);
+    end_ainfo(a);
     return msdone(s);
 }
 
 static char *
 parse_id(char *p, char **save)
 {
-    char *b;
+    const char *b;
 
-    while (isspace(*p))
+    while (isspace(UCH(*p)))
 	if (*p++ == '\n')
 	    rescan_lineno++;
-    if (!isalpha(*p) && *p != '_')
+    if (!isalpha(UCH(*p)) && *p != '_')
 	return NULL;
     b = p;
-    while (isalnum(*p) || *p == '_' || *p == '$')
+    while (IS_NAME2(*p))
 	p++;
     if (save)
     {
-	*save = cache_tag(b, (size_t) (p - b));
+	*save = cache_tag(b, (size_t)(p - b));
     }
     return p;
 }
@@ -1723,7 +2294,7 @@ parse_int(char *p, int *save)
 {
     int neg = 0, val = 0;
 
-    while (isspace(*p))
+    while (isspace(UCH(*p)))
 	if (*p++ == '\n')
 	    rescan_lineno++;
     if (*p == '-')
@@ -1731,9 +2302,9 @@ parse_int(char *p, int *save)
 	neg = 1;
 	p++;
     }
-    if (!isdigit(*p))
+    if (!isdigit(UCH(*p)))
 	return NULL;
-    while (isdigit(*p))
+    while (isdigit(UCH(*p)))
 	val = val * 10 + *p++ - '0';
     if (neg)
 	val = -val;
@@ -1748,7 +2319,7 @@ parse_arginfo(bucket *a, char *args, int argslen)
     char *p = args, *tmp;
     int i, redec = 0;
 
-    if (a->args > 0)
+    if (a->args >= 0)
     {
 	if (a->args != argslen)
 	    arg_number_disagree_warning(rescan_lineno, a->name);
@@ -1767,12 +2338,12 @@ parse_arginfo(bucket *a, char *args, int argslen)
 	return;
     for (i = 0; i < argslen; i++)
     {
-	while (isspace(*p))
+	while (isspace(UCH(*p)))
 	    if (*p++ == '\n')
 		rescan_lineno++;
 	if (*p++ != '$')
 	    bad_formals();
-	while (isspace(*p))
+	while (isspace(UCH(*p)))
 	    if (*p++ == '\n')
 		rescan_lineno++;
 	if (*p == '<')
@@ -1780,7 +2351,7 @@ parse_arginfo(bucket *a, char *args, int argslen)
 	    havetags = 1;
 	    if (!(p = parse_id(p + 1, &tmp)))
 		bad_formals();
-	    while (isspace(*p))
+	    while (isspace(UCH(*p)))
 		if (*p++ == '\n')
 		    rescan_lineno++;
 	    if (*p++ != '>')
@@ -1797,7 +2368,7 @@ parse_arginfo(bucket *a, char *args, int argslen)
 	    a->argtags[i] = NULL;
 	if (!(p = parse_id(p, &a->argnames[i])))
 	    bad_formals();
-	while (isspace(*p))
+	while (isspace(UCH(*p)))
 	    if (*p++ == '\n')
 		rescan_lineno++;
 	if (*p++)
@@ -1811,7 +2382,7 @@ compile_arg(char **theptr, char *yyvaltag)
 {
     char *p = *theptr;
     struct mstring *c = msnew();
-    int i, j, n;
+    int i, n;
     Value_t *offsets = NULL, maxoffset;
     bucket **rhs;
 
@@ -1825,12 +2396,14 @@ compile_arg(char **theptr, char *yyvaltag)
     }
     if (maxoffset > 0)
     {
-	offsets = TMALLOC(Value_t, maxoffset + 1);
+	int j;
+
+	offsets = TCMALLOC(Value_t, maxoffset + 1);
 	NO_SPACE(offsets);
 
 	for (j = 0, i++; i < nitems; i++)
 	    if (pitem[i]->class != ARGUMENT)
-		offsets[++j] = (Value_t) (i - nitems + 1);
+		offsets[++j] = (Value_t)(i - nitems + 1);
     }
     rhs = pitem + nitems - 1;
 
@@ -1846,7 +2419,7 @@ compile_arg(char **theptr, char *yyvaltag)
 	    if (*++p == '<')
 		if (!(p = parse_id(++p, &tag)) || *p++ != '>')
 		    illegal_tag(rescan_lineno, NULL, NULL);
-	    if (isdigit(*p) || *p == '-')
+	    if (isdigit(UCH(*p)) || *p == '-')
 	    {
 		int val;
 		if (!(p = parse_int(p, &val)))
@@ -1870,7 +2443,7 @@ compile_arg(char **theptr, char *yyvaltag)
 		else if (havetags)
 		    unknown_rhs(val);
 	    }
-	    else if (isalpha(*p) || *p == '_')
+	    else if (isalpha(UCH(*p)) || *p == '_')
 	    {
 		char *arg;
 		if (!(p = parse_id(p, &arg)))
@@ -1882,8 +2455,8 @@ compile_arg(char **theptr, char *yyvaltag)
 		    unknown_arg_warning(rescan_lineno, "$", arg, NULL, NULL);
 		else if (!tag)
 		    tag = plhs[nrules]->argtags[i];
-		msprintf(c, "yystack.l_mark[%d]", i - plhs[nrules]->args + 1
-			 - n);
+		msprintf(c, "yystack.l_mark[%d]",
+			 i - plhs[nrules]->args + 1 - n);
 		if (tag)
 		    msprintf(c, ".%s", tag);
 		else if (havetags)
@@ -1909,6 +2482,95 @@ compile_arg(char **theptr, char *yyvaltag)
     return msdone(c);
 }
 
+static int
+can_elide_arg(char **theptr, const char *yyvaltag)
+{
+    char *p = *theptr;
+    int rv = 0;
+    int i, n = 0;
+    Value_t *offsets = NULL, maxoffset = 0;
+    bucket **rhs;
+    char *tag = NULL;
+
+    if (*p++ != '$')
+	return 0;
+    if (*p == '<')
+    {
+	if (!(p = parse_id(++p, &tag)) || *p++ != '>')
+	    return 0;
+    }
+    for (i = nitems - 1; pitem[i]; --i)
+    {
+	n++;
+	if (pitem[i]->class != ARGUMENT)
+	    maxoffset++;
+    }
+    if (maxoffset > 0)
+    {
+	int j;
+
+	offsets = TCMALLOC(Value_t, maxoffset + 1);
+	NO_SPACE(offsets);
+
+	for (j = 0, i++; i < nitems; i++)
+	    if (pitem[i]->class != ARGUMENT)
+		offsets[++j] = (Value_t)(i - nitems + 1);
+    }
+    rhs = pitem + nitems - 1;
+
+    if (isdigit(UCH(*p)) || *p == '-')
+    {
+	int val;
+	if (!(p = parse_int(p, &val)))
+	    rv = 0;
+	else
+	{
+	    if (val <= 0)
+		rv = 1 - val + n;
+	    else if (val > maxoffset)
+		rv = 0;
+	    else
+	    {
+		i = offsets[val];
+		rv = 1 - i;
+		if (!tag)
+		    tag = rhs[i]->tag;
+	    }
+	}
+    }
+    else if (isalpha(UCH(*p)) || *p == '_')
+    {
+	char *arg;
+	if (!(p = parse_id(p, &arg)))
+	{
+	    FREE(offsets);
+	    return 0;
+	}
+	for (i = plhs[nrules]->args - 1; i >= 0; i--)
+	    if (arg == plhs[nrules]->argnames[i])
+		break;
+	if (i >= 0)
+	{
+	    if (!tag)
+		tag = plhs[nrules]->argtags[i];
+	    rv = plhs[nrules]->args + n - i;
+	}
+    }
+    if (tag && yyvaltag)
+    {
+	if (strcmp(tag, yyvaltag))
+	    rv = 0;
+    }
+    else if (tag || yyvaltag)
+	rv = 0;
+    if (maxoffset > 0)
+	FREE(offsets);
+    if (p == NULL || *p || rv <= 0)
+	return 0;
+    *theptr = p + 1;
+    return rv;
+}
+
 #define ARG_CACHE_SIZE	1024
 static struct arg_cache
 {
@@ -1919,7 +2581,7 @@ static struct arg_cache
  *arg_cache[ARG_CACHE_SIZE];
 
 static int
-lookup_arg_cache(char *code)
+lookup_arg_cache(const char *code)
 {
     struct arg_cache *entry;
 
@@ -1960,14 +2622,13 @@ clean_arg_cache(void)
 	arg_cache[i] = NULL;
     }
 }
-#endif
+#endif /* defined(YYBTYACC) */
 
 static void
 advance_to_start(void)
 {
     int c;
     bucket *bp;
-    char *s_cptr;
     int s_lineno;
 #if defined(YYBTYACC)
     char *args = NULL;
@@ -1976,12 +2637,18 @@ advance_to_start(void)
 
     for (;;)
     {
+	const char *s_cptr;
+
 	c = nextc();
 	if (c != '%')
 	    break;
 	s_cptr = cptr;
 	switch (keyword())
 	{
+	case XCODE:
+	    copy_code();
+	    break;
+
 	case MARK:
 	    no_grammar();
 
@@ -1999,10 +2666,10 @@ advance_to_start(void)
     }
 
     c = nextc();
-    if (!isalpha(c) && c != '_' && c != '.' && c != '_')
+    if (!isalpha(UCH(c)) && c != '_' && c != '.' && c != '_')
 	syntax_error(lineno, line, cptr);
     bp = get_name();
-    if (goal == 0)
+    if (goal == NULL)
     {
 	if (bp->class == TERM)
 	    terminal_start(bp->name);
@@ -2050,27 +2717,27 @@ start_rule(bucket *bp, int s_lineno)
 static void
 end_rule(void)
 {
-    int i;
-
     if (!last_was_action && plhs[nrules]->tag)
     {
 	if (pitem[nitems - 1])
 	{
+	    int i;
+
 	    for (i = nitems - 1; (i > 0) && pitem[i]; --i)
-		continue;
-	    if (pitem[i + 1] == 0 || pitem[i + 1]->tag != plhs[nrules]->tag)
-		default_action_warning();
+	    {
+		;
+	    }
+	    if (pitem[i + 1] == NULL || pitem[i + 1]->tag != plhs[nrules]->tag)
+		default_action_warning(plhs[nrules]->name);
 	}
 	else
-	{
-	    default_action_warning();
-	}
+	    default_action_warning(plhs[nrules]->name);
     }
 
     last_was_action = 0;
     if (nitems >= maxitems)
 	expand_items();
-    pitem[nitems] = 0;
+    pitem[nitems] = NULL;
     ++nitems;
     ++nrules;
 }
@@ -2081,6 +2748,7 @@ insert_empty_rule(void)
     bucket *bp, **bpp;
 
     assert(cache);
+    assert(cache_size >= CACHE_SIZE);
     sprintf(cache, "$$%d", ++gensym);
     bp = make_bucket(cache);
     last_symbol->next = bp;
@@ -2091,12 +2759,12 @@ insert_empty_rule(void)
     bp->args = 0;
 #endif
 
-    nitems = (Value_t) (nitems + 2);
+    nitems = (Value_t)(nitems + 2);
     if (nitems > maxitems)
 	expand_items();
     bpp = pitem + nitems - 1;
     *bpp-- = bp;
-    while ((bpp[0] = bpp[-1]) != 0)
+    while ((bpp[0] = bpp[-1]) != NULL)
 	--bpp;
 
     if (++nrules >= maxrules)
@@ -2122,13 +2790,13 @@ insert_arg_rule(char *arg, char *tag)
     {
 	rule = nrules;
 	insert_arg_cache(code, rule);
-	fprintf(f, "case %d:\n", rule - 2);
-	if (!lflag)
-	    fprintf(f, line_format, line_number, input_file_name);
-	fprintf(f, "%s;\n", code);
-	fprintf(f, "break;\n");
+	trialaction = 1;	/* arg rules always run in trial mode */
+	begin_case(f, rule - 2);
+	fprintf_lineno(f, line_number, input_file_name);
+	fprintf(f, "%s;", code);
+	end_case(f);
 	insert_empty_rule();
-	plhs[rule]->tag = tag;
+	plhs[rule]->tag = cache_tag(tag, strlen(tag));
 	plhs[rule]->class = ARGUMENT;
     }
     else
@@ -2199,11 +2867,33 @@ add_symbol(void)
     }
     else if (bp->args != argslen)
 	wrong_number_args_warning("", bp->name);
-    if (bp->args > 0 && argslen > 0)
+    if (args != NULL)
     {
-	char *ap;
-	int i;
-	for (ap = args, i = 0; i < argslen; i++)
+	char *ap = args;
+	int i = 0;
+	int elide_cnt = can_elide_arg(&ap, bp->argtags[0]);
+
+	if (elide_cnt > argslen)
+	    elide_cnt = 0;
+	if (elide_cnt)
+	{
+	    for (i = 1; i < elide_cnt; i++)
+		if (can_elide_arg(&ap, bp->argtags[i]) != elide_cnt - i)
+		{
+		    elide_cnt = 0;
+		    break;
+		}
+	}
+	if (elide_cnt)
+	{
+	    assert(i == elide_cnt);
+	}
+	else
+	{
+	    ap = args;
+	    i = 0;
+	}
+	for (; i < argslen; i++)
 	    ap = insert_arg_rule(ap, bp->argtags[i]);
 	free(args);
     }
@@ -2221,33 +2911,32 @@ copy_action(void)
     int i, j, n;
     int depth;
 #if defined(YYBTYACC)
-    int trialaction = 0;
     int haveyyval = 0;
 #endif
-    char *tag;
+    const char *tag;
     FILE *f = action_file;
-    int a_lineno = lineno;
-    char *a_line = dup_line();
-    char *a_cptr = a_line + (cptr - line);
+    struct ainfo a;
     Value_t *offsets = NULL, maxoffset;
     bucket **rhs;
+
+    begin_ainfo(a, 0);
 
     if (last_was_action)
 	insert_empty_rule();
     last_was_action = 1;
+#if defined(YYBTYACC)
+    trialaction = (*cptr == L_BRAC);
+#endif
 
-    fprintf(f, "case %d:\n", nrules - 2);
+    begin_case(f, nrules - 2);
 #if defined(YYBTYACC)
     if (backtrack)
     {
-	if (*cptr != L_BRAC)
+	if (!trialaction)
 	    fprintf(f, "  if (!yytrial)\n");
-	else
-	    trialaction = 1;
     }
 #endif
-    if (!lflag)
-	fprintf(f, line_format, lineno, input_file_name);
+    fprintf_lineno(f, lineno, input_file_name);
     if (*cptr == '=')
 	++cptr;
 
@@ -2275,7 +2964,7 @@ copy_action(void)
 	{
 	    if (pitem[i]->class != ARGUMENT)
 	    {
-		offsets[++j] = (Value_t) (i - nitems + 1);
+		offsets[++j] = (Value_t)(i - nitems + 1);
 	    }
 	}
     }
@@ -2290,7 +2979,7 @@ copy_action(void)
 	{
 	    int d_lineno = lineno;
 	    char *d_line = dup_line();
-	    char *d_cptr = d_line + (cptr - line);
+	    const char *d_cptr = d_line + (cptr - line);
 
 	    ++cptr;
 	    tag = get_tag();
@@ -2302,7 +2991,7 @@ copy_action(void)
 		FREE(d_line);
 		goto loop;
 	    }
-	    else if (isdigit(c))
+	    else if (isdigit(UCH(c)))
 	    {
 		i = get_number();
 		if (i == 0)
@@ -2310,10 +2999,12 @@ copy_action(void)
 		else if (i > maxoffset)
 		{
 		    dollar_warning(d_lineno, i);
-		    fprintf(f, "yystack.l_mark[%d].%s", i - maxoffset, tag);
+		    fprintf(f, "yystack.l_mark[%ld].%s",
+			    (long)(i - maxoffset), tag);
 		}
 		else if (offsets)
-		    fprintf(f, "yystack.l_mark[%d].%s", offsets[i], tag);
+		    fprintf(f, "yystack.l_mark[%ld].%s",
+			    (long)offsets[i], tag);
 		FREE(d_line);
 		goto loop;
 	    }
@@ -2326,16 +3017,16 @@ copy_action(void)
 		goto loop;
 	    }
 #if defined(YYBTYACC)
-	    else if (isalpha(c) || c == '_')
+	    else if (isalpha(UCH(c)) || c == '_')
 	    {
-		char *arg = scan_id();
+		const char *arg = scan_id();
 		for (i = plhs[nrules]->args - 1; i >= 0; i--)
 		    if (arg == plhs[nrules]->argnames[i])
 			break;
 		if (i < 0)
 		    unknown_arg_warning(d_lineno, "$", arg, d_line, d_cptr);
-		fprintf(f, "yystack.l_mark[%d].%s", i - plhs[nrules]->args +
-			1 - n, tag);
+		fprintf(f, "yystack.l_mark[%d].%s",
+			i - plhs[nrules]->args + 1 - n, tag);
 		FREE(d_line);
 		goto loop;
 	    }
@@ -2348,7 +3039,7 @@ copy_action(void)
 	    if (havetags)
 	    {
 		tag = plhs[nrules]->tag;
-		if (tag == 0)
+		if (tag == NULL)
 		    untyped_lhs();
 		fprintf(f, "yyval.%s", tag);
 	    }
@@ -2369,9 +3060,9 @@ copy_action(void)
 		if (i <= 0 || i > maxoffset)
 		    unknown_rhs(i);
 		tag = rhs[offsets[i]]->tag;
-		if (tag == 0)
+		if (tag == NULL)
 		    untyped_rhs(i, rhs[offsets[i]]->name);
-		fprintf(f, "yystack.l_mark[%d].%s", offsets[i], tag);
+		fprintf(f, "yystack.l_mark[%ld].%s", (long)offsets[i], tag);
 	    }
 	    else
 	    {
@@ -2380,10 +3071,10 @@ copy_action(void)
 		else if (i > maxoffset)
 		{
 		    dollar_warning(lineno, i);
-		    fprintf(f, "yystack.l_mark[%d]", i - maxoffset);
+		    fprintf(f, "yystack.l_mark[%ld]", (long)(i - maxoffset));
 		}
 		else if (offsets)
-		    fprintf(f, "yystack.l_mark[%d]", offsets[i]);
+		    fprintf(f, "yystack.l_mark[%ld]", (long)offsets[i]);
 	    }
 	    goto loop;
 	}
@@ -2397,9 +3088,9 @@ copy_action(void)
 	    goto loop;
 	}
 #if defined(YYBTYACC)
-	else if (isalpha(cptr[1]) || cptr[1] == '_')
+	else if (isalpha(UCH(cptr[1])) || cptr[1] == '_')
 	{
-	    char *arg;
+	    const char *arg;
 	    ++cptr;
 	    arg = scan_id();
 	    for (i = plhs[nrules]->args - 1; i >= 0; i--)
@@ -2422,10 +3113,8 @@ copy_action(void)
     {
 	if (!locations)
 	{
-	    int l_lineno = lineno;
-	    char *l_line = dup_line();
-	    char *l_cptr = l_line + (cptr - line);
-	    syntax_error(l_lineno, l_line, l_cptr);
+	    dislocations_warning();
+	    locations = 1;
 	}
 	if (cptr[1] == '$')
 	{
@@ -2448,16 +3137,23 @@ copy_action(void)
 		fprintf(f, "yystack.p_mark[%d]", offsets[i]);
 	    goto loop;
 	}
+	else if (cptr[1] == '-')
+	{
+	    cptr += 2;
+	    i = get_number();
+	    fprintf(f, "yystack.p_mark[%d]", -i - n);
+	    goto loop;
+	}
     }
 #endif
-    if (isalpha(c) || c == '_' || c == '$')
+    if (IS_NAME1(c))
     {
 	do
 	{
 	    putc(c, f);
 	    c = *++cptr;
 	}
-	while (isalnum(c) || c == '_' || c == '$');
+	while (IS_NAME2(c));
 	goto loop;
     }
     ++cptr;
@@ -2482,13 +3178,12 @@ copy_action(void)
 	    if (c == L_CURL && !haveyyval)
 	    {
 		fprintf(f, "  if (!yytrial)\n");
-		if (!lflag)
-		    fprintf(f, line_format, lineno, input_file_name);
+		fprintf_lineno(f, lineno, input_file_name);
 		trialaction = 0;
 		goto loop;
 	    }
-	    fprintf(f, "\nbreak;\n");
-	    FREE(a_line);
+	    end_case(f);
+	    end_ainfo(a);
 	    if (maxoffset > 0)
 		FREE(offsets);
 	    return;
@@ -2502,13 +3197,13 @@ copy_action(void)
 	get_line();
 	if (line)
 	    goto loop;
-	unterminated_action(a_lineno, a_line, a_cptr);
+	unterminated_action(&a);
 
     case ';':
 	if (depth > 0)
 	    goto loop;
-	fprintf(f, "\nbreak;\n");
-	free(a_line);
+	end_case(f);
+	end_ainfo(a);
 	if (maxoffset > 0)
 	    FREE(offsets);
 	return;
@@ -2544,14 +3239,13 @@ copy_action(void)
 	    if (c == L_CURL && !haveyyval)
 	    {
 		fprintf(f, "  if (!yytrial)\n");
-		if (!lflag)
-		    fprintf(f, line_format, lineno, input_file_name);
+		fprintf_lineno(f, lineno, input_file_name);
 		goto loop;
 	    }
 	}
 #endif
-	fprintf(f, "\nbreak;\n");
-	free(a_line);
+	end_case(f);
+	end_ainfo(a);
 	if (maxoffset > 0)
 	    FREE(offsets);
 	return;
@@ -2568,7 +3262,7 @@ copy_action(void)
     case '/':
 	{
 	    char *s = copy_comment();
-	    fputs(s, f);
+	    puts_trim(s, f);
 	    free(s);
 	}
 	goto loop;
@@ -2579,32 +3273,25 @@ copy_action(void)
 }
 
 #if defined(YYBTYACC)
-static void
-copy_destructor(void)
+static char *
+get_code(struct ainfo *a, const char *loc)
 {
     int c;
     int depth;
     char *tag;
-    bucket *bp;
-    struct mstring *destructor_text = msnew();
-    char *code_text;
-    int a_lineno;
-    char *a_line;
-    char *a_cptr;
+    struct mstring *code_mstr = msnew();
 
     if (!lflag)
-	msprintf(destructor_text, line_format, lineno, input_file_name);
+	msprintf(code_mstr, line_format, lineno, input_file_name);
 
     cptr = after_blanks(cptr);
     if (*cptr == L_CURL)
 	/* avoid putting curly-braces in first column, to ease editing */
-	mputc(destructor_text, '\t');
+	mputc(code_mstr, '\t');
     else
 	syntax_error(lineno, line, cptr);
 
-    a_lineno = lineno;
-    a_line = dup_line();
-    a_cptr = a_line + (cptr - line);
+    begin_ainfo((*a), 0);
 
     depth = 0;
   loop:
@@ -2615,14 +3302,14 @@ copy_destructor(void)
 	{
 	    int d_lineno = lineno;
 	    char *d_line = dup_line();
-	    char *d_cptr = d_line + (cptr - line);
+	    const char *d_cptr = d_line + (cptr - line);
 
 	    ++cptr;
 	    tag = get_tag();
 	    c = *cptr;
 	    if (c == '$')
 	    {
-		msprintf(destructor_text, "(*val).%s", tag);
+		msprintf(code_mstr, "(*val).%s", tag);
 		++cptr;
 		FREE(d_line);
 		goto loop;
@@ -2633,7 +3320,7 @@ copy_destructor(void)
 	else if (cptr[1] == '$')
 	{
 	    /* process '$$' later; replacement is context dependent */
-	    msprintf(destructor_text, "$$");
+	    msprintf(code_mstr, "$$");
 	    cptr += 2;
 	    goto loop;
 	}
@@ -2642,34 +3329,32 @@ copy_destructor(void)
     {
 	if (!locations)
 	{
-	    int l_lineno = lineno;
-	    char *l_line = dup_line();
-	    char *l_cptr = l_line + (cptr - line);
-	    syntax_error(l_lineno, l_line, l_cptr);
+	    dislocations_warning();
+	    locations = 1;
 	}
-	msprintf(destructor_text, "(*loc)");
+	msprintf(code_mstr, "%s", loc);
 	cptr += 2;
 	goto loop;
     }
-    if (isalpha(c) || c == '_' || c == '$')
+    if (IS_NAME1(c))
     {
 	do
 	{
-	    mputc(destructor_text, c);
+	    mputc(code_mstr, c);
 	    c = *++cptr;
 	}
-	while (isalnum(c) || c == '_' || c == '$');
+	while (IS_NAME2(c));
 	goto loop;
     }
     ++cptr;
-    mputc(destructor_text, c);
+    mputc(code_mstr, c);
     switch (c)
     {
     case '\n':
 	get_line();
 	if (line)
 	    goto loop;
-	unterminated_action(a_lineno, a_line, a_cptr);
+	unterminated_action(a);
 
     case L_CURL:
 	++depth;
@@ -2678,13 +3363,13 @@ copy_destructor(void)
     case R_CURL:
 	if (--depth > 0)
 	    goto loop;
-	goto process_symbols;
+	goto out;
 
     case '\'':
     case '"':
 	{
 	    char *s = copy_string(c);
-	    msprintf(destructor_text, "%s", s);
+	    msprintf(code_mstr, "%s", s);
 	    free(s);
 	}
 	goto loop;
@@ -2692,7 +3377,7 @@ copy_destructor(void)
     case '/':
 	{
 	    char *s = copy_comment();
-	    msprintf(destructor_text, "%s", s);
+	    msprintf(code_mstr, "%s", s);
 	    free(s);
 	}
 	goto loop;
@@ -2700,11 +3385,31 @@ copy_destructor(void)
     default:
 	goto loop;
     }
-  process_symbols:
-    code_text = msdone(destructor_text);
+  out:
+    return msdone(code_mstr);
+}
+
+static void
+copy_initial_action(void)
+{
+    struct ainfo a;
+
+    initial_action = get_code(&a, "yyloc");
+    end_ainfo(a);
+}
+
+static void
+copy_destructor(void)
+{
+    char *code_text;
+    struct ainfo a;
+    bucket *bp;
+
+    code_text = get_code(&a, "(*loc)");
+
     for (;;)
     {
-	c = nextc();
+	int c = nextc();
 	if (c == EOF)
 	    unexpected_EOF();
 	if (c == '<')
@@ -2720,7 +3425,7 @@ copy_destructor(void)
 		    default_destructor[UNTYPED_DEFAULT] = bp;
 		}
 		if (bp->destructor != NULL)
-		    destructor_redeclared_warning(a_lineno, a_line, a_cptr);
+		    destructor_redeclared_warning(&a);
 		else
 		    /* replace "$$" with "(*val)" in destructor code */
 		    bp->destructor = process_destructor_XX(code_text, NULL);
@@ -2736,7 +3441,7 @@ copy_destructor(void)
 		    default_destructor[TYPED_DEFAULT] = bp;
 		}
 		if (bp->destructor != NULL)
-		    destructor_redeclared_warning(a_lineno, a_line, a_cptr);
+		    destructor_redeclared_warning(&a);
 		else
 		{
 		    /* postpone re-processing destructor $$s until end of grammar spec */
@@ -2747,20 +3452,20 @@ copy_destructor(void)
 	    }
 	    else
 	    {			/* "semantic type" default destructor */
-		tag = get_tag();
+		char *tag = get_tag();
 		bp = lookup_type_destructor(tag);
 		if (bp->destructor != NULL)
-		    destructor_redeclared_warning(a_lineno, a_line, a_cptr);
+		    destructor_redeclared_warning(&a);
 		else
 		    /* replace "$$" with "(*val).tag" in destructor code */
 		    bp->destructor = process_destructor_XX(code_text, tag);
 	    }
 	}
-	else if (isalpha(c) || c == '_' || c == '.' || c == '$')
+	else if (isalpha(UCH(c)) || c == '_' || c == '.' || c == '$')
 	{			/* "symbol" destructor */
 	    bp = get_name();
 	    if (bp->destructor != NULL)
-		destructor_redeclared_warning(a_lineno, a_line, a_cptr);
+		destructor_redeclared_warning(&a);
 	    else
 	    {
 		/* postpone re-processing destructor $$s until end of grammar spec */
@@ -2772,7 +3477,7 @@ copy_destructor(void)
 	else
 	    break;
     }
-    free(a_line);
+    end_ainfo(a);
     free(code_text);
 }
 
@@ -2797,14 +3502,14 @@ process_destructor_XX(char *code, char *tag)
 	    msprintf(new_code, "(*val).%s", tag);
 	goto loop;
     }
-    if (isalpha(c) || c == '_' || c == '$')
+    if (IS_NAME1(c))
     {
 	do
 	{
 	    mputc(new_code, c);
 	    c = *++codeptr;
 	}
-	while (isalnum(c) || c == '_' || c == '$');
+	while (IS_NAME2(c));
 	goto loop;
     }
     ++codeptr;
@@ -2866,7 +3571,7 @@ static int
 mark_symbol(void)
 {
     int c;
-    bucket *bp = NULL;
+    const bucket *bp = NULL;
 
     c = cptr[1];
     if (c == '%' || c == '\\')
@@ -2883,17 +3588,28 @@ mark_symbol(void)
 	     ((c = cptr[4]) == 'c' || c == 'C') &&
 	     ((c = cptr[5], !IS_IDENT(c))))
 	cptr += 5;
+    else if ((c == 'e' || c == 'E') &&
+	     ((c = cptr[2]) == 'm' || c == 'M') &&
+	     ((c = cptr[3]) == 'p' || c == 'P') &&
+	     ((c = cptr[4]) == 't' || c == 'T') &&
+	     ((c = cptr[5]) == 'y' || c == 'Y') &&
+	     ((c = cptr[6], !IS_IDENT(c))))
+    {
+	cptr += 6;
+	return (1);
+    }
     else
 	syntax_error(lineno, line, cptr);
 
     c = nextc();
-    if (isalpha(c) || c == '_' || c == '.' || c == '$')
+    if (isalpha(UCH(c)) || c == '_' || c == '.' || c == '$')
 	bp = get_name();
     else if (c == '\'' || c == '"')
 	bp = get_literal();
     else
     {
 	syntax_error(lineno, line, cptr);
+	/*NOTREACHED */
     }
 
     if (rprec[nrules] != UNDEFINED && bp->prec != rprec[nrules])
@@ -2907,29 +3623,32 @@ mark_symbol(void)
 static void
 read_grammar(void)
 {
-    int c;
-
     initialize_grammar();
     advance_to_start();
 
     for (;;)
     {
-	c = nextc();
+	int c = nextc();
+
 	if (c == EOF)
 	    break;
-	if (isalpha(c)
+	if (isalpha(UCH(c))
 	    || c == '_'
 	    || c == '.'
 	    || c == '$'
 	    || c == '\''
 	    || c == '"')
+	{
 	    add_symbol();
+	}
+	else if (c == L_CURL || c == '='
 #if defined(YYBTYACC)
-	else if (c == L_CURL || c == '=' || (backtrack && c == L_BRAC))
-#else
-	else if (c == L_CURL || c == '=')
+		 || (backtrack && c == L_BRAC)
 #endif
+	    )
+	{
 	    copy_action();
+	}
 	else if (c == '|')
 	{
 	    end_rule();
@@ -2956,7 +3675,7 @@ free_tags(void)
 {
     int i;
 
-    if (tag_table == 0)
+    if (tag_table == NULL)
 	return;
 
     for (i = 0; i < ntags; ++i)
@@ -2971,7 +3690,8 @@ static void
 pack_names(void)
 {
     bucket *bp;
-    char *p, *s, *t;
+    char *p;
+    char *t;
 
     name_pool_size = 13;	/* 13 == sizeof("$end") + sizeof("$accept") */
     for (bp = first_symbol; bp; bp = bp->next)
@@ -2985,10 +3705,13 @@ pack_names(void)
     t = name_pool + 13;
     for (bp = first_symbol; bp; bp = bp->next)
     {
+	const char *s = bp->name;
+
 	p = t;
-	s = bp->name;
 	while ((*t++ = *s++) != 0)
-	    continue;
+	{
+	    ;
+	}
 	FREE(bp->name);
 	bp->name = p;
     }
@@ -3015,14 +3738,14 @@ check_symbols(void)
 static void
 protect_string(char *src, char **des)
 {
-    unsigned len;
-    char *s;
-    char *d;
-
     *des = src;
     if (src)
     {
-	len = 1;
+	const char *s;
+	char *d;
+
+	unsigned len = 1;
+
 	s = src;
 	while (*s)
 	{
@@ -3064,8 +3787,8 @@ pack_symbols(void)
 	if (bp->class == TERM)
 	    ++ntokens;
     }
-    start_symbol = (Value_t) ntokens;
-    nvars = (Value_t) (nsyms - ntokens);
+    start_symbol = (Value_t)ntokens;
+    nvars = (Value_t)(nsyms - ntokens);
 
     symbol_name = TMALLOC(char *, nsyms);
     NO_SPACE(symbol_name);
@@ -3096,11 +3819,11 @@ pack_symbols(void)
     v = TMALLOC(bucket *, nsyms);
     NO_SPACE(v);
 
-    v[0] = 0;
-    v[start_symbol] = 0;
+    v[0] = NULL;
+    v[start_symbol] = NULL;
 
     i = 1;
-    j = (Value_t) (start_symbol + 1);
+    j = (Value_t)(start_symbol + 1);
     for (bp = first_symbol; bp; bp = bp->next)
     {
 	if (bp->class == TERM)
@@ -3113,8 +3836,8 @@ pack_symbols(void)
     for (i = 1; i < ntokens; ++i)
 	v[i]->index = i;
 
-    goal->index = (Index_t) (start_symbol + 1);
-    k = (Value_t) (start_symbol + 2);
+    goal->index = (Index_t)(start_symbol + 1);
+    k = (Value_t)(start_symbol + 2);
     while (++i < nsyms)
 	if (v[i] != goal)
 	{
@@ -3124,7 +3847,7 @@ pack_symbols(void)
 
     goal->value = 0;
     k = 1;
-    for (i = (Value_t) (start_symbol + 1); i < nsyms; ++i)
+    for (i = (Value_t)(start_symbol + 1); i < nsyms; ++i)
     {
 	if (v[i] != goal)
 	{
@@ -3145,7 +3868,7 @@ pack_symbols(void)
 	}
     }
 
-    assert(v[1] != 0);
+    assert(v[1] != NULL);
 
     if (v[1]->value == UNDEFINED)
 	v[1]->value = 256;
@@ -3159,7 +3882,9 @@ pack_symbols(void)
 	    while (j < k && n == symbol_value[j])
 	    {
 		while (++j < k && n == symbol_value[j])
-		    continue;
+		{
+		    ;
+		}
 		++n;
 	    }
 	    v[i]->value = n;
@@ -3197,7 +3922,7 @@ pack_symbols(void)
     symbol_prec[start_symbol] = 0;
     symbol_assoc[start_symbol] = TOKEN;
 #if defined(YYBTYACC)
-    symbol_pval[start_symbol] = (Value_t) (max_tok_pval + 1);
+    symbol_pval[start_symbol] = (Value_t)(max_tok_pval + 1);
 #endif
     for (++i; i < nsyms; ++i)
     {
@@ -3207,7 +3932,7 @@ pack_symbols(void)
 	symbol_prec[k] = v[i]->prec;
 	symbol_assoc[k] = v[i]->assoc;
 #if defined(YYBTYACC)
-	symbol_pval[k] = (Value_t) ((max_tok_pval + 1) + v[i]->value + 1);
+	symbol_pval[k] = (Value_t)((max_tok_pval + 1) + v[i]->value + 1);
 	if (destructor)
 	{
 	    symbol_destructor[k] = v[i]->destructor;
@@ -3233,8 +3958,6 @@ pack_grammar(void)
 {
     int i;
     Value_t j;
-    Assoc_t assoc;
-    Value_t prec2;
 
     ritem = TMALLOC(Value_t, nitems);
     NO_SPACE(ritem);
@@ -3265,6 +3988,9 @@ pack_grammar(void)
     j = 4;
     for (i = 3; i < nrules; ++i)
     {
+	Assoc_t assoc;
+	Value_t prec2;
+
 #if defined(YYBTYACC)
 	if (plhs[i]->args > 0)
 	{
@@ -3294,7 +4020,7 @@ pack_grammar(void)
 	    }
 	    ++j;
 	}
-	ritem[j] = (Value_t) - i;
+	ritem[j] = (Value_t)-i;
 	++j;
 	if (rprec[i] == UNDEFINED)
 	{
@@ -3356,11 +4082,11 @@ finalize_destructors(void)
 {
     int i;
     bucket *bp;
-    char *tag;
 
     for (i = 2; i < nsyms; ++i)
     {
-	tag = symbol_type_tag[i];
+	char *tag = symbol_type_tag[i];
+
 	if (symbol_destructor[i] == NULL)
 	{
 	    if (tag == NULL)
@@ -3394,8 +4120,10 @@ finalize_destructors(void)
 	}
 	else
 	{			/* replace "$$" with "(*val)[.tag]" in destructor code */
+	    char *destructor_source = symbol_destructor[i];
 	    symbol_destructor[i]
-		= process_destructor_XX(symbol_destructor[i], tag);
+		= process_destructor_XX(destructor_source, tag);
+	    FREE(destructor_source);
 	}
     }
     /* 'symbol_type_tag[]' elements are freed by 'free_tags()' */
@@ -3452,9 +4180,9 @@ reader(void)
 
 #ifdef NO_LEAKS
 static param *
-free_declarations(param * list)
+free_declarations(param *list)
 {
-    while (list != 0)
+    while (list != NULL)
     {
 	param *next = list->next;
 	free(list->type);

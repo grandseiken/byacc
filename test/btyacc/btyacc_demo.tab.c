@@ -1,10 +1,10 @@
 /* original parser id follows */
 /* yysccsid[] = "@(#)yaccpar	1.9 (Berkeley) 02/21/93" */
-/* (use YYMAJOR/YYMINOR for ifdefs dependent of parser version) */
+/* (use YYMAJOR/YYMINOR for ifdefs dependent on parser version) */
 
 #define YYBYACC 1
-#define YYMAJOR 1
-#define YYMINOR 9
+#define YYMAJOR 2
+#define YYMINOR 0
 #define YYCHECK "yyyymmdd"
 
 #define YYEMPTY        (-1)
@@ -135,24 +135,24 @@ typedef int Scope;
 typedef int Type;
 enum Operator { ADD, SUB, MUL, MOD, DIV, DEREF };
 
-typedef unsigned char bool;
+typedef unsigned char mybool;
 typedef struct Decl {
     Scope *scope;
     Type  *type;
-    bool (*istype)(void);
+    mybool (*istype)(void);
 } Decl;
 
 #include "btyacc_demo.tab.h"
 #include <stdlib.h>
 #include <stdio.h>
-#line 36 "btyacc_demo.y"
 #ifdef YYSTYPE
 #undef  YYSTYPE_IS_DECLARED
 #define YYSTYPE_IS_DECLARED 1
 #endif
 #ifndef YYSTYPE_IS_DECLARED
 #define YYSTYPE_IS_DECLARED 1
-typedef union {
+#line 36 "btyacc_demo.y"
+typedef union YYSTYPE {
     Scope	*scope;
     Expr	*expr;
     Expr_List	*elist;
@@ -173,9 +173,11 @@ typedef struct YYLTYPE
     int first_column;
     int last_line;
     int last_column;
+    unsigned source;
 } YYLTYPE;
 #define YYLTYPE_IS_DECLARED 1
 #endif
+#define YYRHSLOC(rhs, k) ((rhs)[k])
 
 /* compatibility with bison */
 #ifdef YYPARSE_PARAM
@@ -200,10 +202,10 @@ typedef struct YYLTYPE
 
 /* Parameters sent to yyerror. */
 #ifndef YYERROR_DECL
-#define YYERROR_DECL() yyerror(YYLTYPE loc, const char *s)
+#define YYERROR_DECL() yyerror(YYLTYPE *loc, const char *s)
 #endif
 #ifndef YYERROR_CALL
-#define YYERROR_CALL(msg) yyerror(yylloc, msg)
+#define YYERROR_CALL(msg) yyerror(&yylloc, msg)
 #endif
 
 #ifndef YYDESTRUCT_DECL
@@ -229,165 +231,164 @@ extern int YYPARSE_DECL();
 #define ELSE 268
 #define CLCL 269
 #define YYERRCODE 256
-typedef short YYINT;
+typedef int YYINT;
 static const YYINT demo_lhs[] = {                        -1,
-   15,   15,   15,   12,   18,    0,    4,   19,    4,   20,
-    2,   21,    2,   10,   10,   13,   13,   11,   11,   11,
-   11,   11,   14,   14,   22,   23,    3,    3,    8,    8,
-   24,   25,    8,    8,    8,    8,   16,   16,   17,   17,
-    9,    1,    1,    1,    1,    1,    1,    1,    1,    5,
-   26,    5,   27,   28,    5,    5,   29,    5,    6,    6,
-    7,
+   15,   15,   15,   12,   18,    0,    4,   19,    4,    2,
+   20,    2,   10,   10,   13,   13,   11,   11,   11,   11,
+   11,   14,   14,   21,   22,    3,    3,    8,    8,   23,
+   24,    8,    8,    8,    8,   16,   16,   17,   17,    9,
+    1,    1,    1,    1,    1,    1,    1,    1,    5,    5,
+   25,   26,    5,    5,   27,    5,    6,    6,    7,
 };
 static const YYINT demo_len[] = {                         2,
-    0,    1,    3,    2,    0,    2,    0,    0,    3,    0,
-    5,    0,    6,    1,    3,    0,    2,    1,    1,    1,
-    1,    1,    1,    1,    0,    0,    5,    1,    0,    1,
-    0,    0,    5,    5,    5,    6,    0,    1,    4,    1,
-    4,    4,    4,    4,    4,    4,    3,    1,    1,    1,
-    0,    3,    0,    0,   11,    8,    0,    2,    0,    3,
-    4,
+    0,    1,    3,    2,    0,    2,    0,    0,    3,    3,
+    0,    4,    1,    3,    0,    2,    1,    1,    1,    1,
+    1,    1,    1,    0,    0,    5,    1,    0,    1,    0,
+    0,    5,    5,    5,    6,    0,    1,    4,    1,    2,
+    4,    4,    4,    4,    4,    3,    1,    1,    1,    2,
+    0,    0,   11,    8,    0,    2,    0,    3,    4,
 };
 static const YYINT demo_defred[] = {                      5,
-    0,    7,    0,    0,   20,   21,   22,   23,   24,    2,
-    9,    8,   14,   19,   18,    0,    0,    0,   15,    0,
-    3,   16,   31,   30,    0,    0,    0,   32,   11,   25,
-   25,   25,    0,   17,   26,    0,   26,    0,    0,    8,
-   13,    0,    0,    0,   40,    8,    0,    0,    8,   48,
-   49,    0,   59,    0,   33,    0,    0,   16,   31,    0,
-   31,   31,   31,   31,   31,   35,    0,    0,    0,    0,
-   47,    0,    0,    0,    0,    0,   61,    0,    0,   39,
-    0,    0,   44,   46,   45,    0,   50,   60,    0,    0,
-   31,    0,   58,    0,   52,    0,    0,   53,    0,    0,
-   54,    0,   55,
+    0,    7,    0,    0,   19,   20,   21,   22,   23,    2,
+    9,    0,   13,   18,   17,    0,   15,   30,   29,    0,
+    0,    0,    0,    0,   31,   10,   24,   24,   24,    0,
+   14,    3,   16,   25,    0,   25,    0,    0,    8,   12,
+    0,    0,    0,   39,    0,    0,    0,    8,   47,   48,
+    0,   57,    0,   32,    0,    0,   15,   30,    0,   30,
+   30,   30,   30,   30,   34,    0,    0,    0,   46,    0,
+    0,    0,    0,    0,   59,    0,   38,    0,    0,   43,
+   45,   44,    0,    0,   49,   58,    0,   30,   50,   56,
+    0,    0,    0,   51,    0,    0,   52,    0,   53,
 };
+#if defined(YYDESTRUCT_CALL) || defined(YYSTYPE_TOSTRING)
 static const YYINT demo_stos[] = {                        0,
   271,  289,  275,  290,  261,  262,  263,  264,  265,  269,
-  273,  281,  282,  283,  285,  286,  290,  259,  282,  291,
-  269,   42,   40,  259,  274,  279,  284,  295,   59,   44,
-   40,   91,  292,  285,  293,  296,  293,  293,  293,  123,
-  278,  294,  279,  294,  280,  281,  287,  288,   42,  259,
-  260,  272,  290,  279,   41,  279,  290,   41,   44,  290,
-   43,   45,   42,   47,   37,   93,  277,  291,  284,  295,
-  272,  295,  295,  295,  295,  295,  125,  290,  279,  280,
-  272,  272,  272,  272,  272,  266,  273,  276,  297,  300,
-   40,  272,  278,  295,   59,  272,   41,  267,  298,  276,
-  268,  299,  276,
+  273,  281,  282,  283,  285,  286,   42,   40,  259,  274,
+  279,  290,  259,  284,  294,   59,   44,   40,   91,  291,
+  282,  269,  285,  292,  295,  292,  292,  292,  123,  278,
+  293,  279,  293,  280,  281,  287,  288,   42,  259,  260,
+  272,  290,  279,   41,  279,  279,   41,   44,  290,   43,
+   45,   42,   47,   37,   93,  277,  284,  294,  272,  294,
+  294,  294,  294,  294,  125,  290,  280,  272,  272,  272,
+  272,  272,  266,  272,  273,  276,  298,   40,   59,  278,
+  294,  272,   41,  267,  296,  276,  268,  297,  276,
 };
+#endif /* YYDESTRUCT_CALL || YYSTYPE_TOSTRING */
 static const YYINT demo_dgoto[] = {                       1,
-   52,   87,   25,    3,   88,   67,   41,   26,   45,   12,
-   13,   14,   27,   15,   16,   47,   48,    2,    4,   20,
-   33,   35,   42,   28,   36,   89,   99,  102,   90,
+   84,   85,   20,    3,   86,   66,   40,   21,   44,   12,
+   13,   14,   24,   15,   16,   46,   47,    2,   22,   30,
+   34,   41,   25,   35,   95,   98,   87,
 };
 static const YYINT demo_sindex[] = {                      0,
-    0,    0,    0, -124,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0, -256, -124,    0,    0,  -33,
-    0,    0,    0,    0,   34,   -4, -205,    0,    0,    0,
-    0,    0, -110,    0,    0,  -33,    0, -124,  -15,    0,
-    0,  -33,  -36,  -33,    0,    0,    4,    7,    0,    0,
-    0,    5,    0,   -4,    0,   -4, -124,    0,    0,  -15,
-    0,    0,    0,    0,    0,    0,  -46,  -33, -205, -124,
-    0,  -15,  -15,  -15,  -15,  -15,    0,  -91,   -4,    0,
-  122,  122,    0,    0,    0,   40,    0,    0,  -15, -110,
-    0,  106,    0,  -15,    0,  113, -183,    0,  -91,    0,
-    0,  -91,    0,
+    0,    0,    0, -103,    0,    0,    0,    0,    0,    0,
+    0,  -31,    0,    0,    0, -238,    0,    0,    0,    4,
+  -36, -103,    0, -133,    0,    0,    0,    0,    0,  -94,
+    0,    0,    0,    0,  -40,    0, -103,  -33,    0,    0,
+  -40,  -25,  -40,    0,  -31,    8,   15,    0,    0,    0,
+   -2,    0,  -36,    0,  -36,  -36,    0,    0,  -33,    0,
+    0,    0,    0,    0,    0,  -92, -133, -103,    0,  -33,
+  -33,  -33,  -33,  -33,    0,   -8,    0,   23,   23,    0,
+    0,    0,   11,   75,    0,    0,  -94,    0,    0,    0,
+  -33,   96, -194,    0,   -8,    0,    0,   -8,    0,
 };
 static const YYINT demo_rindex[] = {                      0,
-    0,    0,    1, -157,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,  -28,  -22,    0,  -29,
-    0,    0,    0,    0,    0,  -27,  -34,    0,    0,    0,
-    0,    0,    0,    0,    0,    8,    0,  -12,    0,    0,
-    0,  -20,    0,   32,    0,    0,    0,   69,    0,    0,
-    0,    0,    0,  -18,    0,   56,   33,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,  -31,   -1,   -6, -157,
-    0,    0,    0,    0,    0,    0,    0,  -14,   63,    0,
-   13,   23,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,  -14,  -42,
-    0,  -14,    0,
+    0,    0,    1, -181,    0,    0,    0,    0,    0,    0,
+    0,   17,    0,    0,    0,    0,    0,    0,    0,    0,
+  -39, -181,   12,  -34,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,   -5,    0,  -11,    0,    0,    0,
+  -17,    0,   28,    0,  -41,    0,   47,    0,    0,    0,
+    0,    0,  -13,    0,   18,   70,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,  -19,  -27, -181,    0,    0,
+    0,    0,    0,    0,    0,  -29,    0,   56,   64,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,  -29,  -30,    0,  -29,    0,
 };
 #if YYBTYACC
 static const YYINT demo_cindex[] = {                      0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0, -145, -150,    0,   81,
+    0,  -22,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0, -179,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,   52,    0,    0,    0,    0,    0,
+   58,    0,   62,    0,  -21,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,   82,    0,    0,    0,    0,
-    0,   91,    0,  112,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0, -113,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,  117,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,  -98,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,  -96,  -92,
-    0,  -82,    0,
+    0,    0,    0,    0,    0, -146,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0, -143, -147,    0, -134,    0,
 };
 #endif
 static const YYINT demo_gindex[] = {                      0,
-   53,  175,    0,    0,    9,    0,   90,   76,  111,   27,
-   29,    0,  124,  -25,    0,    0,    0,    0,   21,  126,
-    0,  136,  147,   71,    0,    0,    0,    0,    0,
+    9,  143,    0,    0,   50,    0,   63,  101,   83,    7,
+  130,    0,   98,    2,    0,    0,    0,    0,   19,    0,
+   10,  117,   66,    0,    0,    0,    0,
 };
-#define YYTABLESIZE 270
-static const YYINT demo_table[] = {                      56,
-    6,   34,   18,   31,   55,   25,   25,   25,   22,   25,
-    8,   10,   40,   10,   29,   10,   28,    4,    4,    4,
-   29,    4,   34,   29,   25,   34,   49,   51,   37,   29,
-   10,   28,   17,   36,   36,   31,    4,   36,   29,   29,
-   34,   65,   29,   34,   58,   19,   63,   61,   29,   62,
-   59,   64,   36,   42,   32,   42,   25,   42,    8,    9,
-   53,   29,   10,   43,   46,   43,   57,   43,    4,   60,
-   29,   42,   10,   10,   10,   29,   10,   30,   77,   91,
-   56,   43,   56,   98,   36,   19,   32,   78,   25,   29,
-   29,    8,   29,   29,   10,   12,   46,   66,   29,   27,
-    4,    1,   29,   41,   34,   42,   41,  100,   57,   38,
-  103,   43,   71,    0,   27,   43,   36,   54,    4,   56,
-    7,    7,   29,   10,   81,   82,   83,   84,   85,   70,
-    7,   72,   73,   74,   75,   76,    5,    6,    7,    8,
-    9,   92,   65,   79,   10,    0,   96,   63,   61,   65,
-   62,    7,   64,   97,   63,   61,    7,   62,   65,   64,
-    9,   94,    9,   63,   95,   37,   38,   39,   64,    5,
-    6,    7,    8,    9,   86,   13,    9,   10,   11,   93,
-   80,   69,   68,   44,    0,    0,    0,    0,    0,    0,
+#define YYTABLESIZE 286
+static const YYINT demo_table[] = {                      28,
+    6,   17,   28,   28,   27,   24,   24,   24,   48,   24,
+   17,   54,   35,   35,   28,   54,   35,    0,    0,   27,
+   23,    4,    8,   28,   24,   33,   28,   33,   39,   36,
+   33,   35,   75,   48,   64,   28,   36,   37,   38,   62,
+   60,   28,   61,   45,   63,   33,   51,   27,   57,   28,
+   88,    4,    4,    4,   29,    4,   24,   52,   58,   64,
+   28,   26,   26,   35,   62,   29,   59,   69,   33,   63,
+    4,   28,   94,   28,   45,   28,   26,    1,   78,   79,
+   80,   81,   82,   11,   76,   28,   28,   37,   24,    6,
+   65,    0,   54,   55,   54,   35,   41,    0,   41,   92,
+   41,    0,    4,    8,   42,   28,   42,   28,   42,   33,
+   40,   64,    9,   40,   41,    9,   62,   60,   28,   61,
+   12,   63,   42,   68,    9,   70,   71,   72,   73,   74,
+    8,    9,   64,   89,    4,   42,   93,   62,   60,   28,
+   61,   53,   63,   55,   96,   56,   11,   99,   41,   90,
+   77,   31,   43,   91,   67,    0,   42,    5,    6,    7,
+    8,    9,    0,    0,    0,   10,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,   56,   56,   56,   56,
-   56,   56,   56,   56,   25,   24,   56,    8,    8,    8,
-    8,    8,    8,    8,    8,    0,    4,    8,    4,    4,
-    4,    4,    4,   50,   51,   51,    1,    0,    0,    0,
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    8,
-    0,    8,    8,    8,    8,    8,    0,    0,    0,    8,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,   19,    8,
+    8,    8,    8,    8,   24,   49,   50,    8,   54,   54,
+   54,   54,   54,   54,   54,   54,    3,    3,   54,    8,
+    8,    8,    8,    8,    8,    8,    8,    1,    0,    8,
+    0,   50,    5,    6,    7,    8,    9,   83,    0,    8,
+   10,    8,    8,    8,    8,    8,    0,    0,    0,    8,
+    4,    0,    4,    4,    4,    4,    4,    8,    8,    8,
+    8,    8,    0,    0,    0,    8,
 };
-static const YYINT demo_check[] = {                      42,
-    0,   27,  259,   40,   41,   40,   41,   42,   42,   44,
-   42,   40,  123,   42,   44,   44,   44,   40,   41,   42,
-   41,   44,   41,   44,   59,   44,   42,   42,   41,   59,
-   59,   59,   12,   40,   41,   40,   59,   44,   59,   41,
-   59,   37,   44,   69,   41,   17,   42,   43,   41,   45,
-   44,   47,   59,   41,   91,   43,   91,   45,  264,  265,
-   40,   91,   91,   41,   38,   43,   46,   45,   91,   49,
-   91,   59,   40,   41,   42,   44,   44,   44,  125,   40,
-  123,   59,  125,  267,   91,   57,   91,   67,  123,   91,
-   59,  123,   59,  123,  123,  123,   70,   93,   91,   44,
-  123,  259,  123,   41,  123,   93,   44,   99,  123,   41,
-  102,   36,   60,  259,   59,   93,  123,   42,  269,   44,
-   40,   40,   91,   91,   72,   73,   74,   75,   76,   59,
-   40,   61,   62,   63,   64,   65,  261,  262,  263,  264,
-  265,   89,   37,   68,  269,  259,   94,   42,   43,   37,
-   45,   40,   47,   41,   42,   43,   40,   45,   37,   47,
-  259,   91,  259,   42,   59,   30,   31,   32,   47,  261,
-  262,  263,  264,  265,  266,  268,  259,  269,    4,   90,
-   70,   58,   57,   37,   -1,   -1,   -1,   -1,   -1,   -1,
+static const YYINT demo_check[] = {                      41,
+    0,   42,   44,   40,   44,   40,   41,   42,   42,   44,
+   42,   42,   40,   41,   40,   41,   44,   40,   40,   59,
+  259,    3,   42,   41,   59,   24,   44,   41,  123,   41,
+   44,   59,  125,   42,   37,   41,   27,   28,   29,   42,
+   43,   59,   45,   37,   47,   59,   38,   44,   41,   91,
+   40,   40,   41,   42,   91,   44,   91,   39,   44,   37,
+   44,   44,   59,   91,   42,   91,   48,   59,   67,   47,
+   59,   44,  267,   91,   68,   59,   59,  259,   70,   71,
+   72,   73,   74,  123,   66,   91,   59,   41,  123,  269,
+   93,   40,  123,  123,  125,  123,   41,   40,   43,   91,
+   45,   40,   91,  123,   41,  123,   43,   91,   45,  123,
+   41,   37,  259,   44,   59,  259,   42,   43,   91,   45,
+  268,   47,   59,   58,  259,   60,   61,   62,   63,   64,
+  264,  265,   37,   59,  123,   35,   41,   42,   43,  123,
+   45,   41,   47,   43,   95,   45,    4,   98,   93,   87,
+   68,   22,   36,   88,   57,   -1,   93,  261,  262,  263,
+  264,  265,   -1,   -1,   -1,  269,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,  259,  260,  261,  262,
-  263,  264,  265,  266,  259,  259,  269,  259,  260,  261,
-  262,  263,  264,  265,  266,   -1,  259,  269,  261,  262,
-  263,  264,  265,  259,  260,  260,  259,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  259,
-   -1,  261,  262,  263,  264,  265,   -1,   -1,   -1,  269,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,  259,  261,
+  262,  263,  264,  265,  259,  259,  260,  269,  259,  260,
+  261,  262,  263,  264,  265,  266,  259,  259,  269,  259,
+  260,  261,  262,  263,  264,  265,  266,  259,   -1,  269,
+   -1,  260,  261,  262,  263,  264,  265,  266,   -1,  259,
+  269,  261,  262,  263,  264,  265,   -1,   -1,   -1,  269,
+  259,   -1,  261,  262,  263,  264,  265,  261,  262,  263,
+  264,  265,   -1,   -1,   -1,  269,
 };
 #if YYBTYACC
-static const YYINT demo_ctable[] = {                     -1,
-    1,   10,   -1,   21,    4,   -1,   23,   29,   -1,    1,
-   51,   -1,  101,   56,   -1,   -1,   -1,   -1,   -1,   -1,
+static const YYINT demo_ctable[] = {                     18,
+   28,   -1,   19,    8,   -1,   32,    4,   -1,   49,    1,
+   -1,   97,   54,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
@@ -412,7 +413,9 @@ static const YYINT demo_ctable[] = {                     -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
    -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
+   -1,   -1,   -1,   -1,   -1,
 };
 #endif
 #define YYFINAL 1
@@ -420,25 +423,37 @@ static const YYINT demo_ctable[] = {                     -1,
 #define YYDEBUG 0
 #endif
 #define YYMAXTOKEN 269
-#define YYUNDFTOKEN 301
+#define YYUNDFTOKEN 299
 #define YYTRANSLATE(a) ((a) > YYMAXTOKEN ? YYUNDFTOKEN : (a))
 #if YYDEBUG
+#ifndef NULL
+#define NULL (void*)0
+#endif
 static const char *const demo_name[] = {
 
-"$end",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-"'%'",0,0,"'('","')'","'*'","'+'","','","'-'","'.'","'/'",0,0,0,0,0,0,0,0,0,0,0,
-"';'",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"'['",0,
-"']'",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"'{'",0,"'}'",0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-0,0,0,0,0,0,0,0,0,"error","PREFIX","POSTFIX","ID","CONSTANT","EXTERN",
-"REGISTER","STATIC","CONST","VOLATILE","IF","THEN","ELSE","CLCL","$accept",
-"input","expr","decl","declarator_list","decl_list","statement",
+"$end",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,"'%'",NULL,NULL,"'('","')'","'*'","'+'","','",
+"'-'","'.'","'/'",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,"';'",
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+"'['",NULL,"']'",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,"'{'",NULL,"'}'",NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,NULL,NULL,"error","PREFIX","POSTFIX","ID","CONSTANT",
+"EXTERN","REGISTER","STATIC","CONST","VOLATILE","IF","THEN","ELSE","CLCL",
+"$accept","input","expr","decl","declarator_list","decl_list","statement",
 "statement_list","block_statement","declarator","formal_arg","decl_specs",
 "decl_spec","typename","cv_quals","cv_qual","opt_scope","formal_arg_list",
 "nonempty_formal_arg_list","$$1","$$2","$$3","$$4","$$5","$$6","$$7","$$8",
-"$$9","$$10","$$11","$$12","illegal-symbol",
+"$$9","$$10","illegal-symbol",
 };
 static const char *const demo_rule[] = {
 "$accept : input",
@@ -451,10 +466,9 @@ static const char *const demo_rule[] = {
 "decl_list :",
 "$$2 :",
 "decl_list : decl_list $$2 decl",
+"decl : decl_specs declarator_list ';'",
 "$$3 :",
-"decl : decl_specs $$2 $$3 declarator_list ';'",
-"$$4 :",
-"decl : decl_specs $$2 $$3 declarator $$4 block_statement",
+"decl : decl_specs declarator $$3 block_statement",
 "decl_specs : decl_spec",
 "decl_specs : decl_specs $$2 decl_spec",
 "cv_quals :",
@@ -466,40 +480,39 @@ static const char *const demo_rule[] = {
 "decl_spec : STATIC",
 "cv_qual : CONST",
 "cv_qual : VOLATILE",
+"$$4 :",
 "$$5 :",
-"$$6 :",
-"declarator_list : declarator_list ',' $$5 $$6 declarator",
+"declarator_list : declarator_list ',' $$4 $$5 declarator",
 "declarator_list : declarator",
 "declarator :",
 "declarator : ID",
+"$$6 :",
 "$$7 :",
-"$$8 :",
-"declarator : '(' $$7 $$8 declarator ')'",
-"declarator : '*' cv_quals $$5 $$6 declarator",
-"declarator : declarator '[' $$5 expr ']'",
-"declarator : declarator '(' $$5 formal_arg_list ')' cv_quals",
+"declarator : '(' $$6 $$7 declarator ')'",
+"declarator : '*' cv_quals $$4 $$5 declarator",
+"declarator : declarator '[' $$4 expr ']'",
+"declarator : declarator '(' $$4 formal_arg_list ')' cv_quals",
 "formal_arg_list :",
 "formal_arg_list : nonempty_formal_arg_list",
-"nonempty_formal_arg_list : nonempty_formal_arg_list ',' $$7 formal_arg",
+"nonempty_formal_arg_list : nonempty_formal_arg_list ',' $$6 formal_arg",
 "nonempty_formal_arg_list : formal_arg",
-"formal_arg : decl_specs $$2 $$3 declarator",
-"expr : expr '+' $$7 expr",
-"expr : expr '-' $$7 expr",
-"expr : expr '*' $$7 expr",
-"expr : expr '%' $$7 expr",
-"expr : expr '/' $$7 expr",
+"formal_arg : decl_specs declarator",
+"expr : expr '+' $$6 expr",
+"expr : expr '-' $$6 expr",
+"expr : expr '*' $$6 expr",
+"expr : expr '%' $$6 expr",
+"expr : expr '/' $$6 expr",
 "expr : '*' $$2 expr",
 "expr : ID",
 "expr : CONSTANT",
 "statement : decl",
+"statement : expr ';'",
+"$$8 :",
 "$$9 :",
-"statement : $$9 expr ';'",
+"statement : IF '(' $$6 expr ')' THEN $$8 statement ELSE $$9 statement",
+"statement : IF '(' $$6 expr ')' THEN $$8 statement",
 "$$10 :",
-"$$11 :",
-"statement : IF '(' $$7 expr ')' THEN $$10 statement ELSE $$11 statement",
-"statement : IF '(' $$7 expr ')' THEN $$10 statement",
-"$$12 :",
-"statement : $$12 block_statement",
+"statement : $$10 block_statement",
 "statement_list :",
 "statement_list : statement_list $$2 statement",
 "block_statement : '{' $$2 statement_list '}'",
@@ -507,13 +520,16 @@ static const char *const demo_rule[] = {
 };
 #endif
 
+#if YYDEBUG
 int      yydebug;
-int      yynerrs;
+#endif
 
 int      yyerrflag;
 int      yychar;
 YYSTYPE  yyval;
 YYSTYPE  yylval;
+int      yynerrs;
+
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
 YYLTYPE  yyloc; /* position returned by actions */
 YYLTYPE  yylloc; /* position from the lexer */
@@ -526,17 +542,17 @@ do \
 { \
     if (n == 0) \
     { \
-        (loc).first_line   = ((rhs)[-1]).last_line; \
-        (loc).first_column = ((rhs)[-1]).last_column; \
-        (loc).last_line    = ((rhs)[-1]).last_line; \
-        (loc).last_column  = ((rhs)[-1]).last_column; \
+        (loc).first_line   = YYRHSLOC(rhs, 0).last_line; \
+        (loc).first_column = YYRHSLOC(rhs, 0).last_column; \
+        (loc).last_line    = YYRHSLOC(rhs, 0).last_line; \
+        (loc).last_column  = YYRHSLOC(rhs, 0).last_column; \
     } \
     else \
     { \
-        (loc).first_line   = ((rhs)[ 0 ]).first_line; \
-        (loc).first_column = ((rhs)[ 0 ]).first_column; \
-        (loc).last_line    = ((rhs)[n-1]).last_line; \
-        (loc).last_column  = ((rhs)[n-1]).last_column; \
+        (loc).first_line   = YYRHSLOC(rhs, 1).first_line; \
+        (loc).first_column = YYRHSLOC(rhs, 1).first_column; \
+        (loc).last_line    = YYRHSLOC(rhs, n).last_line; \
+        (loc).last_column  = YYRHSLOC(rhs, n).last_column; \
     } \
 } while (0)
 #endif /* YYLLOC_DEFAULT */
@@ -567,9 +583,9 @@ do \
 
 typedef struct {
     unsigned stacksize;
-    short    *s_base;
-    short    *s_mark;
-    short    *s_last;
+    YYINT    *s_base;
+    YYINT    *s_mark;
+    YYINT    *s_last;
     YYSTYPE  *l_base;
     YYSTYPE  *l_mark;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
@@ -595,41 +611,41 @@ static YYSTACKDATA yystack;
 #if YYBTYACC
 
 /* Current parser state */
-static YYParseState *yyps = 0;
+static YYParseState *yyps = NULL;
 
 /* yypath != NULL: do the full parse, starting at *yypath parser state. */
-static YYParseState *yypath = 0;
+static YYParseState *yypath = NULL;
 
 /* Base of the lexical value queue */
-static YYSTYPE *yylvals = 0;
+static YYSTYPE *yylvals = NULL;
 
 /* Current position at lexical value queue */
-static YYSTYPE *yylvp = 0;
+static YYSTYPE *yylvp = NULL;
 
 /* End position of lexical value queue */
-static YYSTYPE *yylve = 0;
+static YYSTYPE *yylve = NULL;
 
 /* The last allocated position at the lexical value queue */
-static YYSTYPE *yylvlim = 0;
+static YYSTYPE *yylvlim = NULL;
 
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
 /* Base of the lexical position queue */
-static YYLTYPE *yylpsns = 0;
+static YYLTYPE *yylpsns = NULL;
 
 /* Current position at lexical position queue */
-static YYLTYPE *yylpp = 0;
+static YYLTYPE *yylpp = NULL;
 
 /* End position of lexical position queue */
-static YYLTYPE *yylpe = 0;
+static YYLTYPE *yylpe = NULL;
 
 /* The last allocated position at the lexical position queue */
-static YYLTYPE *yylplim = 0;
+static YYLTYPE *yylplim = NULL;
 #endif
 
 /* Current position at lexical token queue */
-static short  *yylexp = 0;
+static YYINT  *yylexp = NULL;
 
-static short  *yylexemes = 0;
+static YYINT  *yylexemes = NULL;
 #endif /* YYBTYACC */
 #line 200 "btyacc_demo.y"
 
@@ -659,7 +675,7 @@ extern Expr * var_expr(Scope *scope, char *id);
 extern Code * build_expr_code(Expr *expr);
 extern Code * build_if(Expr *cond_expr, Code *then_stmt, Code *else_stmt);
 extern Code * code_append(Code *stmt_list, Code *stmt);
-#line 663 "btyacc_demo.tab.c"
+#line 679 "btyacc_demo.tab.c"
 
 /* Release memory associated with symbol. */
 #if ! defined YYDESTRUCT_IS_DECLARED
@@ -675,8 +691,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 695 "btyacc_demo.tab.c"
 	break;
-#line 680 "btyacc_demo.tab.c"
 	case 45:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -684,8 +700,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 704 "btyacc_demo.tab.c"
 	break;
-#line 689 "btyacc_demo.tab.c"
 	case 42:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -693,8 +709,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 713 "btyacc_demo.tab.c"
 	break;
-#line 698 "btyacc_demo.tab.c"
 	case 47:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -702,8 +718,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 722 "btyacc_demo.tab.c"
 	break;
-#line 707 "btyacc_demo.tab.c"
 	case 37:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -711,8 +727,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 731 "btyacc_demo.tab.c"
 	break;
-#line 716 "btyacc_demo.tab.c"
 	case 257:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -720,8 +736,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 740 "btyacc_demo.tab.c"
 	break;
-#line 725 "btyacc_demo.tab.c"
 	case 258:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -729,8 +745,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 749 "btyacc_demo.tab.c"
 	break;
-#line 734 "btyacc_demo.tab.c"
 	case 40:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -738,8 +754,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 758 "btyacc_demo.tab.c"
 	break;
-#line 743 "btyacc_demo.tab.c"
 	case 91:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -747,8 +763,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 767 "btyacc_demo.tab.c"
 	break;
-#line 752 "btyacc_demo.tab.c"
 	case 46:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -756,8 +772,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 776 "btyacc_demo.tab.c"
 	break;
-#line 761 "btyacc_demo.tab.c"
 	case 259:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -765,8 +781,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).id); }
+#line 785 "btyacc_demo.tab.c"
 	break;
-#line 770 "btyacc_demo.tab.c"
 	case 260:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -774,8 +790,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).expr); }
+#line 794 "btyacc_demo.tab.c"
 	break;
-#line 779 "btyacc_demo.tab.c"
 	case 261:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -783,8 +799,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 803 "btyacc_demo.tab.c"
 	break;
-#line 788 "btyacc_demo.tab.c"
 	case 262:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -792,8 +808,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 812 "btyacc_demo.tab.c"
 	break;
-#line 797 "btyacc_demo.tab.c"
 	case 263:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -801,8 +817,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 821 "btyacc_demo.tab.c"
 	break;
-#line 806 "btyacc_demo.tab.c"
 	case 264:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -810,8 +826,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 830 "btyacc_demo.tab.c"
 	break;
-#line 815 "btyacc_demo.tab.c"
 	case 265:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -819,8 +835,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 839 "btyacc_demo.tab.c"
 	break;
-#line 824 "btyacc_demo.tab.c"
 	case 266:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -828,8 +844,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 848 "btyacc_demo.tab.c"
 	break;
-#line 833 "btyacc_demo.tab.c"
 	case 267:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -837,8 +853,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 857 "btyacc_demo.tab.c"
 	break;
-#line 842 "btyacc_demo.tab.c"
 	case 268:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -846,8 +862,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 866 "btyacc_demo.tab.c"
 	break;
-#line 851 "btyacc_demo.tab.c"
 	case 269:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -855,8 +871,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 875 "btyacc_demo.tab.c"
 	break;
-#line 860 "btyacc_demo.tab.c"
 	case 59:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -864,8 +880,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 884 "btyacc_demo.tab.c"
 	break;
-#line 869 "btyacc_demo.tab.c"
 	case 44:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -873,8 +889,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 893 "btyacc_demo.tab.c"
 	break;
-#line 878 "btyacc_demo.tab.c"
 	case 41:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -882,8 +898,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 902 "btyacc_demo.tab.c"
 	break;
-#line 887 "btyacc_demo.tab.c"
 	case 93:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -891,8 +907,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 911 "btyacc_demo.tab.c"
 	break;
-#line 896 "btyacc_demo.tab.c"
 	case 123:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -900,8 +916,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 920 "btyacc_demo.tab.c"
 	break;
-#line 905 "btyacc_demo.tab.c"
 	case 125:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -909,8 +925,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 929 "btyacc_demo.tab.c"
 	break;
-#line 914 "btyacc_demo.tab.c"
 	case 270:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -918,8 +934,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 938 "btyacc_demo.tab.c"
 	break;
-#line 923 "btyacc_demo.tab.c"
 	case 271:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -927,8 +943,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 947 "btyacc_demo.tab.c"
 	break;
-#line 932 "btyacc_demo.tab.c"
 	case 272:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -936,8 +952,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).expr); }
+#line 956 "btyacc_demo.tab.c"
 	break;
-#line 941 "btyacc_demo.tab.c"
 	case 273:
 #line 67 "btyacc_demo.y"
 	{ /* 'msg' is a 'char *' indicating the context of destructor invocation*/
@@ -946,8 +962,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).decl->scope); free((*val).decl->type); }
+#line 966 "btyacc_demo.tab.c"
 	break;
-#line 951 "btyacc_demo.tab.c"
 	case 274:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -955,8 +971,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 975 "btyacc_demo.tab.c"
 	break;
-#line 960 "btyacc_demo.tab.c"
 	case 275:
 #line 83 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with no type @ position[%d,%d..%d,%d]\n",
@@ -964,8 +980,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  /* in this example, we don't know what to do here */ }
+#line 984 "btyacc_demo.tab.c"
 	break;
-#line 969 "btyacc_demo.tab.c"
 	case 276:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -973,8 +989,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).code); }
+#line 993 "btyacc_demo.tab.c"
 	break;
-#line 978 "btyacc_demo.tab.c"
 	case 277:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -982,8 +998,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).code); }
+#line 1002 "btyacc_demo.tab.c"
 	break;
-#line 987 "btyacc_demo.tab.c"
 	case 278:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -991,8 +1007,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).code); }
+#line 1011 "btyacc_demo.tab.c"
 	break;
-#line 996 "btyacc_demo.tab.c"
 	case 279:
 #line 73 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with type <decl> (case s.b. 279 & 280) @ position[%d,%d..%d,%d]\n",
@@ -1000,8 +1016,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).decl); }
+#line 1020 "btyacc_demo.tab.c"
 	break;
-#line 1005 "btyacc_demo.tab.c"
 	case 280:
 #line 73 "btyacc_demo.y"
 	{ printf("%s accessed by symbol with type <decl> (case s.b. 279 & 280) @ position[%d,%d..%d,%d]\n",
@@ -1009,8 +1025,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).decl); }
+#line 1029 "btyacc_demo.tab.c"
 	break;
-#line 1014 "btyacc_demo.tab.c"
 	case 281:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1018,8 +1034,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).type); }
+#line 1038 "btyacc_demo.tab.c"
 	break;
-#line 1023 "btyacc_demo.tab.c"
 	case 282:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1027,8 +1043,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).type); }
+#line 1047 "btyacc_demo.tab.c"
 	break;
-#line 1032 "btyacc_demo.tab.c"
 	case 283:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1036,8 +1052,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).type); }
+#line 1056 "btyacc_demo.tab.c"
 	break;
-#line 1041 "btyacc_demo.tab.c"
 	case 284:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1045,8 +1061,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).type); }
+#line 1065 "btyacc_demo.tab.c"
 	break;
-#line 1050 "btyacc_demo.tab.c"
 	case 285:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1054,8 +1070,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).type); }
+#line 1074 "btyacc_demo.tab.c"
 	break;
-#line 1059 "btyacc_demo.tab.c"
 	case 286:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1063,8 +1079,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).scope); }
+#line 1083 "btyacc_demo.tab.c"
 	break;
-#line 1068 "btyacc_demo.tab.c"
 	case 287:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1072,8 +1088,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).dlist); }
+#line 1092 "btyacc_demo.tab.c"
 	break;
-#line 1077 "btyacc_demo.tab.c"
 	case 288:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1081,8 +1097,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).dlist); }
+#line 1101 "btyacc_demo.tab.c"
 	break;
-#line 1086 "btyacc_demo.tab.c"
 	case 289:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1090,8 +1106,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).scope); }
+#line 1110 "btyacc_demo.tab.c"
 	break;
-#line 1095 "btyacc_demo.tab.c"
 	case 290:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1099,17 +1115,17 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).scope); }
+#line 1119 "btyacc_demo.tab.c"
 	break;
-#line 1104 "btyacc_demo.tab.c"
 	case 291:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
 			 msg,
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
-		  free((*val).type); }
+		  free((*val).scope); }
+#line 1128 "btyacc_demo.tab.c"
 	break;
-#line 1113 "btyacc_demo.tab.c"
 	case 292:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1117,44 +1133,44 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).scope); }
+#line 1137 "btyacc_demo.tab.c"
 	break;
-#line 1122 "btyacc_demo.tab.c"
 	case 293:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
 			 msg,
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
-		  free((*val).scope); }
+		  free((*val).type); }
+#line 1146 "btyacc_demo.tab.c"
 	break;
-#line 1131 "btyacc_demo.tab.c"
 	case 294:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
 			 msg,
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
-		  free((*val).type); }
+		  free((*val).scope); }
+#line 1155 "btyacc_demo.tab.c"
 	break;
-#line 1140 "btyacc_demo.tab.c"
 	case 295:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
 			 msg,
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
-		  free((*val).scope); }
+		  free((*val).type); }
+#line 1164 "btyacc_demo.tab.c"
 	break;
-#line 1149 "btyacc_demo.tab.c"
 	case 296:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
 			 msg,
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
-		  free((*val).type); }
+		  free((*val).scope); }
+#line 1173 "btyacc_demo.tab.c"
 	break;
-#line 1158 "btyacc_demo.tab.c"
 	case 297:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1162,8 +1178,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).scope); }
+#line 1182 "btyacc_demo.tab.c"
 	break;
-#line 1167 "btyacc_demo.tab.c"
 	case 298:
 #line 78 "btyacc_demo.y"
 	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
@@ -1171,26 +1187,8 @@ YYDESTRUCT_DECL()
 			 (*loc).first_line, (*loc).first_column,
 			 (*loc).last_line, (*loc).last_column);
 		  free((*val).scope); }
+#line 1191 "btyacc_demo.tab.c"
 	break;
-#line 1176 "btyacc_demo.tab.c"
-	case 299:
-#line 78 "btyacc_demo.y"
-	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
-			 msg,
-			 (*loc).first_line, (*loc).first_column,
-			 (*loc).last_line, (*loc).last_column);
-		  free((*val).scope); }
-	break;
-#line 1185 "btyacc_demo.tab.c"
-	case 300:
-#line 78 "btyacc_demo.y"
-	{ printf("%s accessed by symbol of any type other than <decl>  @ position[%d,%d..%d,%d]\n",
-			 msg,
-			 (*loc).first_line, (*loc).first_column,
-			 (*loc).last_line, (*loc).last_column);
-		  free((*val).scope); }
-	break;
-#line 1194 "btyacc_demo.tab.c"
     }
 }
 #define YYDESTRUCT_IS_DECLARED 1
@@ -1203,18 +1201,18 @@ YYDESTRUCT_DECL()
 #endif /* YYBTYACC */
 
 #if YYDEBUG
-#include <stdio.h>         /* needed for printf */
+#include <stdio.h>	/* needed for printf */
 #endif
 
-#include <stdlib.h>        /* needed for malloc, etc */
-#include <string.h>        /* needed for memset */
+#include <stdlib.h>	/* needed for malloc, etc */
+#include <string.h>	/* needed for memset */
 
 /* allocate initial stack or double stack size, up to YYMAXDEPTH */
 static int yygrowstack(YYSTACKDATA *data)
 {
     int i;
     unsigned newsize;
-    short *newss;
+    YYINT *newss;
     YYSTYPE *newvs;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
     YYLTYPE *newps;
@@ -1228,15 +1226,15 @@ static int yygrowstack(YYSTACKDATA *data)
         newsize = YYMAXDEPTH;
 
     i = (int) (data->s_mark - data->s_base);
-    newss = (short *)realloc(data->s_base, newsize * sizeof(*newss));
-    if (newss == 0)
+    newss = (YYINT *)realloc(data->s_base, newsize * sizeof(*newss));
+    if (newss == NULL)
         return YYENOMEM;
 
     data->s_base = newss;
     data->s_mark = newss + i;
 
     newvs = (YYSTYPE *)realloc(data->l_base, newsize * sizeof(*newvs));
-    if (newvs == 0)
+    if (newvs == NULL)
         return YYENOMEM;
 
     data->l_base = newvs;
@@ -1244,7 +1242,7 @@ static int yygrowstack(YYSTACKDATA *data)
 
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
     newps = (YYLTYPE *)realloc(data->p_base, newsize * sizeof(*newps));
-    if (newps == 0)
+    if (newps == NULL)
         return YYENOMEM;
 
     data->p_base = newps;
@@ -1292,7 +1290,7 @@ yyNewState(unsigned size)
 #endif
         return p;
     }
-    p->yystack.s_base    = (short *) malloc(size * sizeof(short));
+    p->yystack.s_base    = (YYINT *) malloc(size * sizeof(YYINT));
     if (p->yystack.s_base == NULL) return NULL;
     p->yystack.l_base    = (YYSTYPE *) malloc(size * sizeof(YYSTYPE));
     if (p->yystack.l_base == NULL) return NULL;
@@ -1333,12 +1331,12 @@ YYPARSE_DECL()
     YYParseState *yyerrctx = NULL;
 #endif /* YYBTYACC */
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
-    YYLTYPE  yyerror_loc_range[2]; /* position of error start & end */
+    YYLTYPE  yyerror_loc_range[3]; /* position of error start/end (0 unused) */
 #endif
 #if YYDEBUG
     const char *yys;
 
-    if ((yys = getenv("YYDEBUG")) != 0)
+    if ((yys = getenv("YYDEBUG")) != NULL)
     {
         yyn = *yys;
         if (yyn >= '0' && yyn <= '9')
@@ -1347,11 +1345,16 @@ YYPARSE_DECL()
     if (yydebug)
         fprintf(stderr, "%sdebug[<# of symbols on state stack>]\n", YYPREFIX);
 #endif
+#if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
+    memset(yyerror_loc_range, 0, sizeof(yyerror_loc_range));
+#endif
 
 #if YYBTYACC
-    yyps = yyNewState(0); if (yyps == 0) goto yyenomem;
-    yyps->save = 0;
+    yyps = yyNewState(0); if (yyps == NULL) goto yyenomem;
+    yyps->save = NULL;
 #endif /* YYBTYACC */
+    yym = 0;
+    /* yyn is set below */
     yynerrs = 0;
     yyerrflag = 0;
     yychar = YYEMPTY;
@@ -1395,10 +1398,10 @@ yyloop:
                 size_t s = (size_t) (yylvlim - yylvals);
 
                 s += YYLVQUEUEGROWTH;
-                if ((yylexemes = (short *)   realloc(yylexemes, s * sizeof(short))) == NULL) goto yyenomem;
-                if ((yylvals   = (YYSTYPE *) realloc(yylvals, s * sizeof(YYSTYPE))) == NULL) goto yyenomem;
+                if ((yylexemes = (YYINT *)realloc(yylexemes, s * sizeof(YYINT))) == NULL) goto yyenomem;
+                if ((yylvals   = (YYSTYPE *)realloc(yylvals, s * sizeof(YYSTYPE))) == NULL) goto yyenomem;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
-                if ((yylpsns   = (YYLTYPE *) realloc(yylpsns, s * sizeof(YYLTYPE))) == NULL) goto yyenomem;
+                if ((yylpsns   = (YYLTYPE *)realloc(yylpsns, s * sizeof(YYLTYPE))) == NULL) goto yyenomem;
 #endif
                 yylvp   = yylve = yylvals + p;
                 yylvlim = yylvals + s;
@@ -1408,7 +1411,7 @@ yyloop:
 #endif
                 yylexp  = yylexemes + p;
             }
-            *yylexp = (short) YYLEX;
+            *yylexp = (YYINT) YYLEX;
             *yylvp++ = yylval;
             yylve++;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
@@ -1425,11 +1428,10 @@ yyloop:
         } while (0);
 #endif /* YYBTYACC */
         if (yychar < 0) yychar = YYEOF;
-        /* if ((yychar = YYLEX) < 0) yychar = YYEOF; */
 #if YYDEBUG
         if (yydebug)
         {
-            yys = yyname[YYTRANSLATE(yychar)];
+            if ((yys = yyname[YYTRANSLATE(yychar)]) == NULL) yys = yyname[YYUNDFTOKEN];
             fprintf(stderr, "%s[%d]: state %d, reading token %d (%s)",
                             YYDEBUGSTR, yydepth, yystate, yychar, yys);
 #ifdef YYSTYPE_TOSTRING
@@ -1488,7 +1490,7 @@ yyloop:
             save->state           = yystate;
             save->errflag         = yyerrflag;
             save->yystack.s_mark  = save->yystack.s_base + (yystack.s_mark - yystack.s_base);
-            memcpy (save->yystack.s_base, yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(short));
+            memcpy (save->yystack.s_base, yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(YYINT));
             save->yystack.l_mark  = save->yystack.l_base + (yystack.l_mark - yystack.l_base);
             memcpy (save->yystack.l_base, yystack.l_base, (size_t) (yystack.l_mark - yystack.l_base + 1) * sizeof(YYSTYPE));
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
@@ -1510,7 +1512,7 @@ yyloop:
                 /* If this is a first conflict in the stack, start saving lexemes */
                 if (!yylexemes)
                 {
-                    yylexemes = (short *) malloc((YYLVQUEUEGROWTH) * sizeof(short));
+                    yylexemes = (YYINT *) malloc((YYLVQUEUEGROWTH) * sizeof(YYINT));
                     if (yylexemes == NULL) goto yyenomem;
                     yylvals   = (YYSTYPE *) malloc((YYLVQUEUEGROWTH) * sizeof(YYSTYPE));
                     if (yylvals == NULL) goto yyenomem;
@@ -1534,7 +1536,7 @@ yyloop:
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
                         *yylpe++ = yylloc;
 #endif
-                        *yylexp  = (short) yychar;
+                        *yylexp  = (YYINT) yychar;
                         yychar   = YYEMPTY;
                     }
                 }
@@ -1569,7 +1571,7 @@ yyloop:
             if (yystack.s_mark >= yystack.s_last && yygrowstack(&yystack) == YYENOMEM)
                 goto yyoverflow;
             yystate = yyctable[ctry];
-            *++yystack.s_mark = (short) yystate;
+            *++yystack.s_mark = (YYINT) yystate;
             *++yystack.l_mark = yylval;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
             *++yystack.p_mark = yylloc;
@@ -1615,9 +1617,18 @@ yyloop:
 
     yynewerrflag = 1;
     goto yyerrhandler;
-    goto yyerrlab;
+    goto yyerrlab; /* redundant goto avoids 'unused label' warning */
 
 yyerrlab:
+    /* explicit YYERROR from an action -- pop the rhs of the rule reduced
+     * before looking for error recovery */
+    yystack.s_mark -= yym;
+    yystate = *yystack.s_mark;
+    yystack.l_mark -= yym;
+#if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
+    yystack.p_mark -= yym;
+#endif
+
     yynewerrflag = 0;
 yyerrhandler:
     while (yyps->save)
@@ -1642,7 +1653,7 @@ yyerrhandler:
             yyerrctx->state          = yystate;
             yyerrctx->errflag        = yyerrflag;
             yyerrctx->yystack.s_mark = yyerrctx->yystack.s_base + (yystack.s_mark - yystack.s_base);
-            memcpy (yyerrctx->yystack.s_base, yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(short));
+            memcpy (yyerrctx->yystack.s_base, yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(YYINT));
             yyerrctx->yystack.l_mark = yyerrctx->yystack.l_base + (yystack.l_mark - yystack.l_base);
             memcpy (yyerrctx->yystack.l_base, yystack.l_base, (size_t) (yystack.l_mark - yystack.l_base + 1) * sizeof(YYSTYPE));
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
@@ -1658,7 +1669,7 @@ yyerrhandler:
         yylexp         = yylexemes + save->lexeme;
         yychar         = YYEMPTY;
         yystack.s_mark = yystack.s_base + (save->yystack.s_mark - save->yystack.s_base);
-        memcpy (yystack.s_base, save->yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(short));
+        memcpy (yystack.s_base, save->yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(YYINT));
         yystack.l_mark = yystack.l_base + (save->yystack.l_mark - save->yystack.l_base);
         memcpy (yystack.l_base, save->yystack.l_base, (size_t) (yystack.l_mark - yystack.l_base + 1) * sizeof(YYSTYPE));
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
@@ -1693,7 +1704,7 @@ yyerrhandler:
             yylloc         = yylpp[-1];
 #endif
             yystack.s_mark = yystack.s_base + (yyerrctx->yystack.s_mark - yyerrctx->yystack.s_base);
-            memcpy (yystack.s_base, yyerrctx->yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(short));
+            memcpy (yystack.s_base, yyerrctx->yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(YYINT));
             yystack.l_mark = yystack.l_base + (yyerrctx->yystack.l_mark - yyerrctx->yystack.l_base);
             memcpy (yystack.l_base, yyerrctx->yystack.l_base, (size_t) (yystack.l_mark - yystack.l_base + 1) * sizeof(YYSTYPE));
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
@@ -1711,11 +1722,11 @@ yyerrhandler:
 
     YYERROR_CALL("syntax error");
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
-    yyerror_loc_range[0] = yylloc; /* lookahead position is error start position */
+    yyerror_loc_range[1] = yylloc; /* lookahead position is error start position */
 #endif
 
 #if !YYBTYACC
-    goto yyerrlab;
+    goto yyerrlab; /* redundant goto avoids 'unused label' warning */
 yyerrlab:
 #endif
     ++yynerrs;
@@ -1740,7 +1751,7 @@ yyinrecovery:
                 *++yystack.l_mark = yylval;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
                 /* lookahead position is error end position */
-                yyerror_loc_range[1] = yylloc;
+                yyerror_loc_range[2] = yylloc;
                 YYLLOC_DEFAULT(yyloc, yyerror_loc_range, 2); /* position of error span */
                 *++yystack.p_mark = yyloc;
 #endif
@@ -1756,7 +1767,7 @@ yyinrecovery:
                 if (yystack.s_mark <= yystack.s_base) goto yyabort;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
                 /* the current TOS position is the error start position */
-                yyerror_loc_range[0] = *yystack.p_mark;
+                yyerror_loc_range[1] = *yystack.p_mark;
 #endif
 #if defined(YYDESTRUCT_CALL)
 #if YYBTYACC
@@ -1784,7 +1795,7 @@ yyinrecovery:
 #if YYDEBUG
         if (yydebug)
         {
-            yys = yyname[YYTRANSLATE(yychar)];
+            if ((yys = yyname[YYTRANSLATE(yychar)]) == NULL) yys = yyname[YYUNDFTOKEN];
             fprintf(stderr, "%s[%d]: state %d, error recovery discarding token %d (%s)\n",
                             YYDEBUGSTR, yydepth, yystate, yychar, yys);
         }
@@ -1842,10 +1853,10 @@ yyreduce:
     if (!yytrial)
 #endif /* YYBTYACC */
     {
-        YYLLOC_DEFAULT(yyloc, &yystack.p_mark[1-yym], yym);
+        YYLLOC_DEFAULT(yyloc, &yystack.p_mark[-yym], yym);
         /* just in case YYERROR is invoked within the action, save
            the start of the rhs as the error start position */
-        yyerror_loc_range[0] = yystack.p_mark[1-yym];
+        yyerror_loc_range[1] = yystack.p_mark[1-yym];
     }
 #endif
 
@@ -1854,271 +1865,317 @@ yyreduce:
 case 1:
 #line 93 "btyacc_demo.y"
 { yyval.scope = yystack.l_mark[0].scope; }
+#line 1869 "btyacc_demo.tab.c"
 break;
 case 2:
 #line 94 "btyacc_demo.y"
 { yyval.scope = global_scope; }
+#line 1874 "btyacc_demo.tab.c"
 break;
 case 3:
 #line 95 "btyacc_demo.y"
 { Decl *d = lookup(yystack.l_mark[-2].scope, yystack.l_mark[-1].id);
 			  if (!d || !d->scope) YYERROR;
 			  yyval.scope = d->scope; }
+#line 1881 "btyacc_demo.tab.c"
 break;
 case 4:
 #line 101 "btyacc_demo.y"
 { Decl *d = lookup(yystack.l_mark[-1].scope, yystack.l_mark[0].id);
 	if (d == NULL || d->istype() == 0) YYERROR;
 	yyval.type = d->type; }
+#line 1888 "btyacc_demo.tab.c"
 break;
 case 5:
 #line 106 "btyacc_demo.y"
-yyval.scope = global_scope = new_scope(0);
+yyval.scope = global_scope = new_scope(NULL);
+#line 1893 "btyacc_demo.tab.c"
 break;
 case 8:
 #line 107 "btyacc_demo.y"
 yyval.scope = yystack.l_mark[-1].scope;
+#line 1898 "btyacc_demo.tab.c"
 break;
 case 10:
 #line 109 "btyacc_demo.y"
-yyval.type = yystack.l_mark[-1].type;
+{YYVALID;}
+#line 1903 "btyacc_demo.tab.c"
 break;
 case 11:
-#line 109 "btyacc_demo.y"
-{YYVALID;}
+#line 110 "btyacc_demo.y"
+yyval.scope = start_fn_def(yystack.l_mark[-2].scope, yystack.l_mark[0].decl);
+#line 1908 "btyacc_demo.tab.c"
 break;
 case 12:
-#line 110 "btyacc_demo.y"
-yyval.scope = start_fn_def(yystack.l_mark[-4].scope, yystack.l_mark[0].decl);
-break;
-case 13:
   if (!yytrial)
 #line 111 "btyacc_demo.y"
 	{ /* demonstrate use of @$ & @N, although this is just the
 	   default computation and so is not necessary */
-	yyloc.first_line   = yystack.p_mark[-5].first_line;
-	yyloc.first_column = yystack.p_mark[-5].first_column;
+	yyloc.first_line   = yystack.p_mark[-3].first_line;
+	yyloc.first_column = yystack.p_mark[-3].first_column;
 	yyloc.last_line    = yystack.p_mark[0].last_line;
 	yyloc.last_column  = yystack.p_mark[0].last_column;
 	finish_fn_def(yystack.l_mark[-2].decl, yystack.l_mark[0].code); }
+#line 1920 "btyacc_demo.tab.c"
 break;
-case 14:
+case 13:
 #line 121 "btyacc_demo.y"
 { yyval.type = yystack.l_mark[0].type; }
+#line 1925 "btyacc_demo.tab.c"
 break;
-case 15:
+case 14:
 #line 122 "btyacc_demo.y"
 { yyval.type = type_combine(yystack.l_mark[-2].type, yystack.l_mark[0].type); }
+#line 1930 "btyacc_demo.tab.c"
+break;
+case 15:
+#line 125 "btyacc_demo.y"
+{ yyval.type = NULL; }
+#line 1935 "btyacc_demo.tab.c"
 break;
 case 16:
-#line 125 "btyacc_demo.y"
-{ yyval.type = 0; }
-break;
-case 17:
 #line 126 "btyacc_demo.y"
 { yyval.type = type_combine(yystack.l_mark[-1].type, yystack.l_mark[0].type); }
+#line 1940 "btyacc_demo.tab.c"
 break;
-case 18:
+case 17:
 #line 130 "btyacc_demo.y"
 { yyval.type = yystack.l_mark[0].type; }
+#line 1945 "btyacc_demo.tab.c"
 break;
-case 19:
+case 18:
 #line 131 "btyacc_demo.y"
 { yyval.type = yystack.l_mark[0].type; }
+#line 1950 "btyacc_demo.tab.c"
 break;
-case 20:
+case 19:
 #line 132 "btyacc_demo.y"
 { yyval.type = bare_extern(); }
+#line 1955 "btyacc_demo.tab.c"
 break;
-case 21:
+case 20:
 #line 133 "btyacc_demo.y"
 { yyval.type = bare_register(); }
+#line 1960 "btyacc_demo.tab.c"
 break;
-case 22:
+case 21:
 #line 134 "btyacc_demo.y"
 { yyval.type = bare_static(); }
+#line 1965 "btyacc_demo.tab.c"
 break;
-case 23:
+case 22:
 #line 138 "btyacc_demo.y"
 { yyval.type = bare_const(); }
+#line 1970 "btyacc_demo.tab.c"
 break;
-case 24:
+case 23:
 #line 139 "btyacc_demo.y"
 { yyval.type = bare_volatile(); }
+#line 1975 "btyacc_demo.tab.c"
+break;
+case 24:
+#line 143 "btyacc_demo.y"
+yyval.scope = yystack.l_mark[-3].scope;
+#line 1980 "btyacc_demo.tab.c"
 break;
 case 25:
 #line 143 "btyacc_demo.y"
-yyval.scope = yystack.l_mark[-3].scope;
-break;
-case 26:
-#line 143 "btyacc_demo.y"
 yyval.type =  yystack.l_mark[-3].type;
+#line 1985 "btyacc_demo.tab.c"
 break;
-case 29:
+case 28:
 #line 148 "btyacc_demo.y"
 { if (!yystack.l_mark[0].type) YYERROR; }  if (!yytrial)
 #line 149 "btyacc_demo.y"
-{ yyval.decl = declare(yystack.l_mark[-1].scope, 0, yystack.l_mark[0].type); }
+{ yyval.decl = declare(yystack.l_mark[-1].scope, NULL, yystack.l_mark[0].type); }
+#line 1992 "btyacc_demo.tab.c"
 break;
-case 30:
+case 29:
   if (!yytrial)
 #line 150 "btyacc_demo.y"
 	{ yyval.decl = declare(yystack.l_mark[-2].scope, yystack.l_mark[0].id, yystack.l_mark[-1].type); }
+#line 1998 "btyacc_demo.tab.c"
+break;
+case 30:
+#line 151 "btyacc_demo.y"
+yyval.scope = yystack.l_mark[-2].scope;
+#line 2003 "btyacc_demo.tab.c"
 break;
 case 31:
 #line 151 "btyacc_demo.y"
-yyval.scope = yystack.l_mark[-2].scope;
+yyval.type =  yystack.l_mark[-2].type;
+#line 2008 "btyacc_demo.tab.c"
 break;
 case 32:
-#line 151 "btyacc_demo.y"
-yyval.type =  yystack.l_mark[-2].type;
-break;
-case 33:
   if (!yytrial)
 #line 151 "btyacc_demo.y"
 	{ yyval.decl = yystack.l_mark[-1].decl; }
+#line 2014 "btyacc_demo.tab.c"
 break;
-case 34:
+case 33:
   if (!yytrial)
 #line 153 "btyacc_demo.y"
 	{ yyval.decl = make_pointer(yystack.l_mark[0].decl, yystack.l_mark[-3].type); }
+#line 2020 "btyacc_demo.tab.c"
 break;
-case 35:
+case 34:
   if (!yytrial)
 #line 155 "btyacc_demo.y"
 	{ yyval.decl = make_array(yystack.l_mark[-4].decl->type, yystack.l_mark[-1].expr); }
+#line 2026 "btyacc_demo.tab.c"
 break;
-case 36:
+case 35:
   if (!yytrial)
 #line 157 "btyacc_demo.y"
 	{ yyval.decl = build_function(yystack.l_mark[-5].decl, yystack.l_mark[-2].dlist, yystack.l_mark[0].type); }
+#line 2032 "btyacc_demo.tab.c"
+break;
+case 36:
+  if (!yytrial)
+#line 160 "btyacc_demo.y"
+	{ yyval.dlist = NULL; }
+#line 2038 "btyacc_demo.tab.c"
 break;
 case 37:
   if (!yytrial)
-#line 160 "btyacc_demo.y"
-	{ yyval.dlist = 0; }
+#line 161 "btyacc_demo.y"
+	{ yyval.dlist = yystack.l_mark[0].dlist; }
+#line 2044 "btyacc_demo.tab.c"
 break;
 case 38:
   if (!yytrial)
-#line 161 "btyacc_demo.y"
-	{ yyval.dlist = yystack.l_mark[0].dlist; }
+#line 164 "btyacc_demo.y"
+	{ yyval.dlist = append_dlist(yystack.l_mark[-3].dlist, yystack.l_mark[0].decl); }
+#line 2050 "btyacc_demo.tab.c"
 break;
 case 39:
   if (!yytrial)
-#line 164 "btyacc_demo.y"
-	{ yyval.dlist = append_dlist(yystack.l_mark[-3].dlist, yystack.l_mark[0].decl); }
+#line 165 "btyacc_demo.y"
+	{ yyval.dlist = build_dlist(yystack.l_mark[0].decl); }
+#line 2056 "btyacc_demo.tab.c"
 break;
 case 40:
   if (!yytrial)
-#line 165 "btyacc_demo.y"
-	{ yyval.dlist = build_dlist(yystack.l_mark[0].decl); }
+#line 168 "btyacc_demo.y"
+	{ yyval.decl = yystack.l_mark[0].decl; }
+#line 2062 "btyacc_demo.tab.c"
 break;
 case 41:
   if (!yytrial)
-#line 168 "btyacc_demo.y"
-	{ yyval.decl = yystack.l_mark[0].decl; }
+#line 172 "btyacc_demo.y"
+	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, ADD, yystack.l_mark[0].expr); }
+#line 2068 "btyacc_demo.tab.c"
 break;
 case 42:
   if (!yytrial)
-#line 172 "btyacc_demo.y"
-	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, ADD, yystack.l_mark[0].expr); }
+#line 173 "btyacc_demo.y"
+	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, SUB, yystack.l_mark[0].expr); }
+#line 2074 "btyacc_demo.tab.c"
 break;
 case 43:
   if (!yytrial)
-#line 173 "btyacc_demo.y"
-	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, SUB, yystack.l_mark[0].expr); }
+#line 174 "btyacc_demo.y"
+	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, MUL, yystack.l_mark[0].expr); }
+#line 2080 "btyacc_demo.tab.c"
 break;
 case 44:
   if (!yytrial)
-#line 174 "btyacc_demo.y"
-	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, MUL, yystack.l_mark[0].expr); }
+#line 175 "btyacc_demo.y"
+	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, MOD, yystack.l_mark[0].expr); }
+#line 2086 "btyacc_demo.tab.c"
 break;
 case 45:
   if (!yytrial)
-#line 175 "btyacc_demo.y"
-	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, MOD, yystack.l_mark[0].expr); }
+#line 176 "btyacc_demo.y"
+	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, DIV, yystack.l_mark[0].expr); }
+#line 2092 "btyacc_demo.tab.c"
 break;
 case 46:
   if (!yytrial)
-#line 176 "btyacc_demo.y"
-	{ yyval.expr = build_expr(yystack.l_mark[-3].expr, DIV, yystack.l_mark[0].expr); }
+#line 177 "btyacc_demo.y"
+	{ yyval.expr = build_expr(NULL, DEREF, yystack.l_mark[0].expr); }
+#line 2098 "btyacc_demo.tab.c"
 break;
 case 47:
   if (!yytrial)
-#line 177 "btyacc_demo.y"
-	{ yyval.expr = build_expr(0, DEREF, yystack.l_mark[0].expr); }
+#line 178 "btyacc_demo.y"
+	{ yyval.expr = var_expr(yystack.l_mark[-1].scope, yystack.l_mark[0].id); }
+#line 2104 "btyacc_demo.tab.c"
 break;
 case 48:
   if (!yytrial)
-#line 178 "btyacc_demo.y"
-	{ yyval.expr = var_expr(yystack.l_mark[-1].scope, yystack.l_mark[0].id); }
+#line 179 "btyacc_demo.y"
+	{ yyval.expr = yystack.l_mark[0].expr; }
+#line 2110 "btyacc_demo.tab.c"
 break;
 case 49:
   if (!yytrial)
-#line 179 "btyacc_demo.y"
-	{ yyval.expr = yystack.l_mark[0].expr; }
+#line 183 "btyacc_demo.y"
+	{ yyval.code = NULL; }
+#line 2116 "btyacc_demo.tab.c"
 break;
 case 50:
-  if (!yytrial)
-#line 183 "btyacc_demo.y"
-	{ yyval.code = 0; }
-break;
-case 51:
-#line 184 "btyacc_demo.y"
-yyval.scope = yystack.l_mark[0].scope;
-break;
-case 52:
 #line 184 "btyacc_demo.y"
 {YYVALID;}  if (!yytrial)
 #line 184 "btyacc_demo.y"
 { yyval.code = build_expr_code(yystack.l_mark[-1].expr); }
+#line 2123 "btyacc_demo.tab.c"
 break;
-case 53:
+case 51:
 #line 185 "btyacc_demo.y"
 yyval.scope = yystack.l_mark[-6].scope;
+#line 2128 "btyacc_demo.tab.c"
 break;
-case 54:
+case 52:
 #line 185 "btyacc_demo.y"
 yyval.scope = yystack.l_mark[-9].scope;
+#line 2133 "btyacc_demo.tab.c"
 break;
-case 55:
+case 53:
 #line 185 "btyacc_demo.y"
 {YYVALID;}  if (!yytrial)
 #line 186 "btyacc_demo.y"
 { yyval.code = build_if(yystack.l_mark[-7].expr, yystack.l_mark[-3].code, yystack.l_mark[0].code); }
+#line 2140 "btyacc_demo.tab.c"
 break;
-case 56:
+case 54:
 #line 187 "btyacc_demo.y"
 {YYVALID;}  if (!yytrial)
 #line 188 "btyacc_demo.y"
-{ yyval.code = build_if(yystack.l_mark[-4].expr, yystack.l_mark[0].code, 0); }
+{ yyval.code = build_if(yystack.l_mark[-4].expr, yystack.l_mark[0].code, NULL); }
+#line 2147 "btyacc_demo.tab.c"
 break;
-case 57:
+case 55:
 #line 189 "btyacc_demo.y"
 yyval.scope = new_scope(yystack.l_mark[0].scope);
+#line 2152 "btyacc_demo.tab.c"
 break;
-case 58:
+case 56:
 #line 189 "btyacc_demo.y"
 {YYVALID;}  if (!yytrial)
 #line 189 "btyacc_demo.y"
 { yyval.code = yystack.l_mark[0].code; }
+#line 2159 "btyacc_demo.tab.c"
 break;
-case 59:
+case 57:
   if (!yytrial)
 #line 192 "btyacc_demo.y"
-	{ yyval.code = 0; }
+	{ yyval.code = NULL; }
+#line 2165 "btyacc_demo.tab.c"
 break;
-case 60:
+case 58:
   if (!yytrial)
 #line 193 "btyacc_demo.y"
 	{ yyval.code = code_append(yystack.l_mark[-2].code, yystack.l_mark[0].code); }
+#line 2171 "btyacc_demo.tab.c"
 break;
-case 61:
+case 59:
   if (!yytrial)
 #line 197 "btyacc_demo.y"
 	{ yyval.code = yystack.l_mark[-1].code; }
+#line 2177 "btyacc_demo.tab.c"
 break;
-#line 2122 "btyacc_demo.tab.c"
+#line 2179 "btyacc_demo.tab.c"
     default:
         break;
     }
@@ -2173,12 +2230,12 @@ break;
                     size_t s = (size_t) (yylvlim - yylvals);
 
                     s += YYLVQUEUEGROWTH;
-                    if ((yylexemes = (short *)   realloc(yylexemes, s * sizeof(short))) == NULL)
+                    if ((yylexemes = (YYINT *)realloc(yylexemes, s * sizeof(YYINT))) == NULL)
                         goto yyenomem;
-                    if ((yylvals   = (YYSTYPE *) realloc(yylvals, s * sizeof(YYSTYPE))) == NULL)
+                    if ((yylvals   = (YYSTYPE *)realloc(yylvals, s * sizeof(YYSTYPE))) == NULL)
                         goto yyenomem;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
-                    if ((yylpsns   = (YYLTYPE *) realloc(yylpsns, s * sizeof(YYLTYPE))) == NULL)
+                    if ((yylpsns   = (YYLTYPE *)realloc(yylpsns, s * sizeof(YYLTYPE))) == NULL)
                         goto yyenomem;
 #endif
                     yylvp   = yylve = yylvals + p;
@@ -2189,7 +2246,7 @@ break;
 #endif
                     yylexp  = yylexemes + p;
                 }
-                *yylexp = (short) YYLEX;
+                *yylexp = (YYINT) YYLEX;
                 *yylvp++ = yylval;
                 yylve++;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
@@ -2206,12 +2263,11 @@ break;
             } while (0);
 #endif /* YYBTYACC */
             if (yychar < 0) yychar = YYEOF;
-            /* if ((yychar = YYLEX) < 0) yychar = YYEOF; */
 #if YYDEBUG
             if (yydebug)
             {
-                yys = yyname[YYTRANSLATE(yychar)];
-                fprintf(stderr, "%s[%d]: state %d, reading %d (%s)\n",
+                if ((yys = yyname[YYTRANSLATE(yychar)]) == NULL) yys = yyname[YYUNDFTOKEN];
+                fprintf(stderr, "%s[%d]: state %d, reading token %d (%s)\n",
                                 YYDEBUGSTR, yydepth, YYFINAL, yychar, yys);
             }
 #endif
@@ -2238,7 +2294,7 @@ break;
     }
 #endif
     if (yystack.s_mark >= yystack.s_last && yygrowstack(&yystack) == YYENOMEM) goto yyoverflow;
-    *++yystack.s_mark = (short) yystate;
+    *++yystack.s_mark = (YYINT) yystate;
     *++yystack.l_mark = yyval;
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)
     *++yystack.p_mark = yyloc;
@@ -2273,7 +2329,7 @@ yyvalid:
     yylexp         = yylexemes + yypath->lexeme;
     yychar         = YYEMPTY;
     yystack.s_mark = yystack.s_base + (yypath->yystack.s_mark - yypath->yystack.s_base);
-    memcpy (yystack.s_base, yypath->yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(short));
+    memcpy (yystack.s_base, yypath->yystack.s_base, (size_t) (yystack.s_mark - yystack.s_base + 1) * sizeof(YYINT));
     yystack.l_mark = yystack.l_base + (yypath->yystack.l_mark - yypath->yystack.l_base);
     memcpy (yystack.l_base, yypath->yystack.l_base, (size_t) (yystack.l_mark - yystack.l_base + 1) * sizeof(YYSTYPE));
 #if defined(YYLTYPE) || defined(YYLTYPE_IS_DECLARED)

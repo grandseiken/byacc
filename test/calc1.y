@@ -114,7 +114,7 @@ vexp	: dexp
 	{
 		$$.lo = $2;
 		$$.hi = $4;
-		if ( $$.lo > $$.hi ) 
+		if ( $$.lo > $$.hi )
 		{
 			(void) printf("interval out of order\n");
 			YYERROR;

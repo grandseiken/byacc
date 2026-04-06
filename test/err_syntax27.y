@@ -1,9 +1,9 @@
 %pure-parser
 
-%parse-param { int regs[26] 
-%parse-param { int *base 
+%parse-param { int regs[26]
+%parse-param { int *base
 
-%lex-param { int *base 
+%lex-param { int *base
 
 %{
 # include <stdio.h>
